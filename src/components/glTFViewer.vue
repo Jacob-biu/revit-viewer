@@ -136,6 +136,7 @@ export default {
     const selectedPart = ref(null);  // 用于点击时显示的固定信息
     const mouseX = ref(0);
     const mouseY = ref(0);
+    let previousClickedObject = null;  // 记录上次点击的物体
 
     // 加载GLTF文件的函数
     const loadGLTF = (file) => {
@@ -238,13 +239,29 @@ export default {
     const handleClick = () => {
       if (!hoveredPart.value) {
         selectedPart.value = null;  // 点击空白处时隐藏信息
+        if (previousClickedObject) {
+          previousClickedObject.material.emissive.set(0x000000);  // 恢复原来的颜色
+        }
         return;
       }
+
+      // 高亮当前点击的部件
+      const object = model.getObjectByName(hoveredPart.value.name);
+      object.material.emissive.set(0xff0000);  // 设置为红色高亮
+
+      // 如果之前有点击的部件，恢复它的颜色
+      if (previousClickedObject && previousClickedObject !== object) {
+        previousClickedObject.material.emissive.set(0x000000);  // 恢复原来的颜色
+      }
+
+      // 更新选中的部件信息
       selectedPart.value = {
         ...hoveredPart.value,
         mouseX: mouseX.value,
         mouseY: mouseY.value,
       };
+
+      previousClickedObject = object;  // 更新记录的点击部件
     };
 
     watch(() => props.file, (newFile) => {
