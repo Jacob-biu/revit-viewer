@@ -57,7 +57,7 @@
     <!-- 固定显示部件信息 -->
     <div v-if="selectedPart" :style="{
       position: 'absolute',
-      bottom: '20px',  /* 将其固定在底部 */
+      bottom: '40px',  /* 将其固定在底部 */
       left: '20px',  /* 距离左边 20px */
       background: 'rgba(0, 0, 0, 0.7)',
       color: 'white',
