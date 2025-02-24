@@ -1,5 +1,21 @@
 <template>
   <div ref="sceneContainer" style="width: 100%; height: 100%; position: relative;">
+    <!-- 爆炸图切换按钮 -->
+    <button @click="toggleExplodedView" :style="{
+      position: 'absolute',
+      top: '20px',
+      right: '20px',
+      zIndex: 1001,
+      padding: '10px',
+      background: '#007bff',
+      color: 'white',
+      border: 'none',
+      borderRadius: '5px',
+      cursor: 'pointer',
+    }">
+      {{ isExploded ? '恢复原图' : '显示爆炸图' }}
+    </button>
+
     <!-- 鼠标悬浮时显示部件信息 -->
     <div v-if="hoveredPart" :style="{
       position: 'absolute',
@@ -130,6 +146,8 @@ export default {
     const selectedPart = ref(null);  // 用于点击时显示的固定信息
     const mouseX = ref(0);
     const mouseY = ref(0);
+    const isExploded = ref(false);  // 是否显示爆炸图
+    const originalPositions = new Map();  // 存储部件的原始位置
     let previousClickedObject = null;  // 记录上次点击的物体
 
     // 加载GLTF文件的函数
@@ -147,6 +165,7 @@ export default {
           model.traverse((child) => {
             if (child.isMesh) {
               child.name = child.name || `Unnamed ${child.uuid}`;
+              originalPositions.set(child, child.position.clone());  // 保存原始位置
             }
           });
         });
@@ -263,6 +282,26 @@ export default {
       previousClickedObject = object;  // 更新记录的点击部件
     };
 
+    // 切换爆炸图
+    const toggleExplodedView = () => {
+      isExploded.value = !isExploded.value;
+
+      model.traverse((child) => {
+        if (child.isMesh) {
+          const originalPosition = originalPositions.get(child);
+          if (isExploded.value) {
+            // 计算爆炸位移
+            const direction = new THREE.Vector3().subVectors(child.position, model.position).normalize();
+            const distance = 50;  // 爆炸距离
+            child.position.add(direction.multiplyScalar(distance));
+          } else {
+            // 恢复原始位置
+            child.position.copy(originalPosition);
+          }
+        }
+      });
+    };
+
     watch(() => props.file, (newFile) => {
       if (newFile) {
         loadGLTF(newFile);
@@ -281,6 +320,8 @@ export default {
       selectedPart,
       mouseX,
       mouseY,
+      isExploded,
+      toggleExplodedView,
     };
   },
 };
@@ -294,5 +335,6 @@ div {
   justify-content: center;
   align-items: center;
   height: 100vh;
+  width:100vh;
 }
 </style>
