@@ -1,20 +1,39 @@
 <template>
   <div ref="sceneContainer" style="width: 100%; height: 100%; position: relative;">
     <!-- 爆炸图切换按钮 -->
-    <button @click="toggleExplodedView" :style="{
+    <!-- <button @click="toggleExplodedView" :style="{
       position: 'absolute',
-      top: '20px',
-      right: '20px',
+      bottom: '20px',
+      left: '20px',
       zIndex: 1001,
-      padding: '10px',
+      padding: '10px 20px',  /* 增加按钮的左右内边距，使按钮看起来更平衡 */
       background: '#007bff',
       color: 'white',
       border: 'none',
       borderRadius: '5px',
       cursor: 'pointer',
+      fontSize: '14px', /* 调整字体大小 */
+      fontWeight: 'bold'  /* 增强按钮文字的可见性 */
     }">
       {{ isExploded ? '恢复原图' : '显示爆炸图' }}
-    </button>
+    </button> -->
+
+    <!-- 悬浮侧边框 -->
+    <div :style="sideBarStyle">
+      <!-- 爆炸图切换按钮 -->
+      <button @click="toggleExplodedView" :style="buttonStyle">
+        {{ isExploded ? '恢复原图' : '显示爆炸图' }}
+      </button>
+      <!-- 预留按钮2 -->
+      <button :style="buttonStyle">
+        按钮2
+      </button>
+      <!-- 预留按钮3 -->
+      <button :style="buttonStyle">
+        按钮3
+      </button>
+    </div>
+
 
     <!-- 鼠标悬浮时显示部件信息 -->
     <div v-if="hoveredPart" :style="{
@@ -314,6 +333,47 @@ export default {
       window.addEventListener("click", handleClick);  // 添加点击事件监听
     });
 
+    const sideBarStyle = {
+      position: 'fixed',
+      top: '50%',  // 垂直居中
+      left: '20px',  // 左侧定位
+      transform: 'translateY(-50%)',  // 精确居中
+      width: '150px',
+      background: 'transparent',
+      color: 'white',
+      padding: '10px',  // 为了按钮之间有空隙
+      borderRadius: '5px',
+      zIndex: 1001,
+      boxShadow: '0 4px 8px rgba(0, 0, 0, 0.3)',  // 添加阴影效果，提升悬浮感
+      display: 'flex',
+      flexDirection: 'column',  // 按钮垂直排列
+      alignItems: 'center',  // 按钮水平居中
+      height: 'auto',  // 高度自适应
+      minHeight: '120px',  // 设置最小高度，避免内容过少时太小
+    };
+
+    const buttonStyle = {
+      width: '100%',
+      padding: '14px 20px',  // 增大按钮内边距
+      background: 'linear-gradient(135deg, #6e7bff, #7a4fff)',  // 渐变背景
+      color: 'white',
+      border: 'none',
+      borderRadius: '30px',  // 圆角按钮
+      cursor: 'pointer',
+      fontSize: '16px',  // 调大字体大小
+      fontWeight: 'bold',
+      marginBottom: '12px',  // 增加按钮之间的间距
+      boxShadow: '0 4px 6px rgba(0, 0, 0, 0.2)',  // 按钮阴影
+      transition: 'all 0.3s ease',  // 平滑过渡效果
+    };
+
+    // 按钮的 hover 状态
+    const hoverButtonStyle = {
+      ...buttonStyle,
+      background: 'linear-gradient(135deg, #5a67f2, #5e3ddb)',  // hover 时改变背景色
+      transform: 'scale(1.05)',  // 按钮放大效果
+    };
+
     return {
       sceneContainer,
       hoveredPart,
@@ -322,6 +382,9 @@ export default {
       mouseY,
       isExploded,
       toggleExplodedView,
+      sideBarStyle,
+      buttonStyle,
+      hoverButtonStyle,
     };
   },
 };
@@ -335,6 +398,13 @@ div {
   justify-content: center;
   align-items: center;
   height: 100vh;
-  width:100vh;
+  width: 100vh;
+}
+
+/* 按钮的 hover 状态 */
+button:hover {
+  background: linear-gradient(135deg, #5a67f2, #5e3ddb);  /* hover 时背景颜色改变 */
+  transform: scale(1.05);  /* 放大效果 */
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3);  /* hover 时更强的阴影 */
 }
 </style>
