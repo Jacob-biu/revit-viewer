@@ -1,26 +1,23 @@
 <template>
   <div ref="sceneContainer" style="width: 100%; height: 100%; position: relative;">
     <!-- 鼠标悬浮时显示部件信息 -->
-    <div
-      v-if="hoveredPart"
-      :style="{
-        position: 'absolute',
-        top: mouseY + 'px',
-        left: mouseX + 'px',
-        background: 'rgba(0, 0, 0, 0.7)',
-        color: 'white',
-        padding: '10px',
-        borderRadius: '5px',
-        pointerEvents: 'none',
-        zIndex: 1000,
-        minWidth: '150px',
-        maxWidth: '300px',
-        minHeight: '100px',
-        maxHeight: '300px',
-        width: 'auto',
-        height: 'auto',
-      }"
-    >
+    <div v-if="hoveredPart" :style="{
+      position: 'absolute',
+      top: mouseY + 'px',
+      left: mouseX + 'px',
+      background: 'rgba(0, 0, 0, 0.7)',
+      color: 'white',
+      padding: '10px',
+      borderRadius: '5px',
+      pointerEvents: 'none',
+      zIndex: 1000,
+      minWidth: '150px',
+      maxWidth: '300px',
+      minHeight: '100px',
+      maxHeight: '300px',
+      width: 'auto',
+      height: 'auto',
+    }">
       <table style="border-collapse: collapse; width: 100%;">
         <thead>
           <tr>
@@ -58,25 +55,22 @@
     </div>
 
     <!-- 固定显示部件信息 -->
-    <div
-      v-if="selectedPart"
-      :style="{
-        position: 'absolute',
-        top: selectedPart.mouseY + 'px',
-        left: selectedPart.mouseX + 'px',
-        background: 'rgba(0, 0, 0, 0.7)',
-        color: 'white',
-        padding: '10px',
-        borderRadius: '5px',
-        zIndex: 1000,
-        minWidth: '150px',
-        maxWidth: '300px',
-        minHeight: '100px',
-        maxHeight: '300px',
-        width: 'auto',
-        height: 'auto',
-      }"
-    >
+    <div v-if="selectedPart" :style="{
+      position: 'absolute',
+      bottom: '20px',  /* 将其固定在底部 */
+      left: '20px',  /* 距离左边 20px */
+      background: 'rgba(0, 0, 0, 0.7)',
+      color: 'white',
+      padding: '10px',
+      borderRadius: '5px',
+      zIndex: 1000,
+      minWidth: '150px',
+      maxWidth: '300px',
+      minHeight: '100px',
+      maxHeight: '300px',
+      width: 'auto',
+      height: 'auto',
+    }">
       <table style="border-collapse: collapse; width: 100%;">
         <thead>
           <tr>
@@ -236,7 +230,12 @@ export default {
     };
 
     // 鼠标点击事件
-    const handleClick = () => {
+    const handleClick = (event) => {
+      // 如果点击的是部件信息区域，不执行隐藏操作
+      if (event.target.closest('table')) {
+        return;
+      }
+
       if (!hoveredPart.value) {
         selectedPart.value = null;  // 点击空白处时隐藏信息
         if (previousClickedObject) {
