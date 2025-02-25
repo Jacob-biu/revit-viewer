@@ -10,10 +10,7 @@
       <button @click="toggleClipping" :style="buttonStyle">
         {{ isClipping ? '关闭剖切' : '开启剖切' }}
       </button>
-      <!-- 切换剖切方向按钮 -->
-      <button @click="switchClippingDirection" :style="buttonStyle">
-        切换剖切方向 ({{ currentDirection }})
-      </button>
+
       <!--测量-->
       <button @click="measure" :style="buttonStyle">
         {{ isMeasuring ? '关闭测量' : '测量' }}
@@ -22,7 +19,12 @@
 
     <!-- 剖切滑块 -->
     <div v-if="isClipping" :style="sliderStyle">
-      <input type="range" v-model="clipPosition" min="-100" max="100" step="1" style="width: 100%;" />
+      <input type="range" v-model="clipPosition" min="-100" max="100" step="1"
+        style="width: 100%; margin-bottom:20px;" />
+      <!-- 切换剖切方向按钮 -->
+      <button @click="switchClippingDirection" :style="buttonStyle">
+        切换剖切方向 ({{ currentDirection }})
+      </button>
     </div>
 
     <!-- 鼠标悬浮时显示部件信息 -->
@@ -139,6 +141,7 @@ import { ref, watch, onMounted } from "vue";
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
+import { CSS2DObject, CSS2DRenderer } from "three/examples/jsm/renderers/CSS2DRenderer";
 
 export default {
   name: "glTFViewer",
@@ -162,6 +165,15 @@ export default {
     const originalPositions = new Map();  // 存储部件的原始位置
     let previousClickedObject = null;  // 记录上次点击的物体
     let clipPlane = null;  // 剖切平面
+    let css2Renderer; // 用于显示标签的渲染器
+
+    
+    const isMeasuring = ref(false); // 是否处于测量模式
+    const measurePoints = ref([]); // 存储测量点
+    const measureResult = ref(null); // 测量结果
+    let measureLine = null; // 辅助线对象
+    let measureLabel = null; // 测量结果标签
+
 
     // 加载GLTF文件的函数
     const loadGLTF = (file) => {
@@ -225,6 +237,14 @@ export default {
       raycaster = new THREE.Raycaster();
       mouse = new THREE.Vector2();
 
+      // 初始化 CSS2DRenderer
+      css2Renderer = new CSS2DRenderer();
+      css2Renderer.setSize(window.innerWidth, window.innerHeight);
+      css2Renderer.domElement.style.position = 'absolute';
+      css2Renderer.domElement.style.top = '0';
+      css2Renderer.domElement.style.pointerEvents = 'none'; // 防止标签拦截鼠标事件
+      sceneContainer.value.appendChild(css2Renderer.domElement);
+
       animate();
     };
 
@@ -233,6 +253,11 @@ export default {
       requestAnimationFrame(animate);
       controls.update();
       renderer.render(scene, camera);
+
+      // 渲染 CSS2D 标签
+      if (css2Renderer) {
+        css2Renderer.render(scene, camera);
+      }
     };
 
     // 鼠标移动事件
@@ -248,6 +273,24 @@ export default {
       raycaster.setFromCamera(mouse, camera);
       const intersects = raycaster.intersectObjects(model.children, true);
 
+      if (isMeasuring.value && measurePoints.value.length === 1) {
+        // 如果正在测量且已经点击了一个点，动态绘制临时辅助线
+        if (intersects.length > 0) {
+          const point = intersects[0].point;
+
+          // 移除旧的临时辅助线
+          if (tempLine) {
+            scene.remove(tempLine);
+          }
+
+          // 绘制新的临时辅助线
+          const geometry = new THREE.BufferGeometry().setFromPoints([measurePoints.value[0], point]);
+          const material = new THREE.LineBasicMaterial({ color: 0xff0000 });
+          tempLine = new THREE.Line(geometry, material);
+          scene.add(tempLine);
+        }
+      }
+
       if (intersects.length > 0) {
         const object = intersects[0].object;
         hoveredPart.value = {
@@ -262,37 +305,75 @@ export default {
     };
 
     // 鼠标点击事件
+    let tempLine = null; // 临时辅助线
+    // let tempSphere = null; // 临时标记
+
     const handleClick = (event) => {
-      // 如果点击的是部件信息区域，不执行隐藏操作
-      if (event.target.closest('table')) {
-        return;
-      }
+      if (isMeasuring.value) {
+        // 获取点击的 3D 坐标
+        mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+        mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+        raycaster.setFromCamera(mouse, camera);
+        const intersects = raycaster.intersectObjects(model.children, true);
 
-      if (!hoveredPart.value) {
-        selectedPart.value = null;  // 点击空白处时隐藏信息
-        if (previousClickedObject) {
-          previousClickedObject.material.emissive.set(0x000000);  // 恢复原来的颜色
+        if (intersects.length > 0) {
+          const point = intersects[0].point; // 获取点击的 3D 点
+
+          if (measurePoints.value.length === 2) {
+            // 如果测量已经完成，重置测量并开始新的测量
+            resetMeasurement();
+            measurePoints.value.push(point); // 添加第一个点
+            drawMeasureMarker(point); // 绘制第一个点的标记
+          } else if (measurePoints.value.length === 1) {
+            // 如果已经有一个点，添加第二个点并完成测量
+            measurePoints.value.push(point);
+            drawMeasureMarker(point); // 绘制第二个点的标记
+            drawMeasureLine(measurePoints.value[0], measurePoints.value[1]); // 绘制辅助线
+
+            // 计算距离并显示标签
+            const distance = calculateDistance(measurePoints.value[0], measurePoints.value[1]);
+            measureResult.value = distance;
+            showMeasureLabel(measurePoints.value[1], distance);
+
+            // 重置临时辅助线
+            if (tempLine) {
+              scene.remove(tempLine);
+              tempLine = null;
+            }
+          } else if (measurePoints.value.length === 0) {
+            // 如果没有点，添加第一个点
+            measurePoints.value.push(point);
+            drawMeasureMarker(point); // 绘制第一个点的标记
+          }
+        } else {
+          // 点击空白区域，取消测量
+          resetMeasurement();
         }
-        return;
+      } else {
+        // 非测量模式下，显示部件信息
+        if (!hoveredPart.value) {
+          selectedPart.value = null;
+          if (previousClickedObject) {
+            previousClickedObject.material.emissive.set(0x000000);
+          }
+          return;
+        }
+
+        const object = model.getObjectByName(hoveredPart.value.name);
+        object.material.emissive.set(0xff0000);
+
+        if (previousClickedObject && previousClickedObject !== object) {
+          previousClickedObject.material.emissive.set(0x000000);
+        }
+
+        selectedPart.value = {
+          ...hoveredPart.value,
+          mouseX: mouseX.value,
+          mouseY: mouseY.value,
+        };
+
+        previousClickedObject = object;
       }
-
-      // 高亮当前点击的部件
-      const object = model.getObjectByName(hoveredPart.value.name);
-      object.material.emissive.set(0xff0000);  // 设置为红色高亮
-
-      // 如果之前有点击的部件，恢复它的颜色
-      if (previousClickedObject && previousClickedObject !== object) {
-        previousClickedObject.material.emissive.set(0x000000);  // 恢复原来的颜色
-      }
-
-      // 更新选中的部件信息
-      selectedPart.value = {
-        ...hoveredPart.value,
-        mouseX: mouseX.value,
-        mouseY: mouseY.value,
-      };
-
-      previousClickedObject = object;  // 更新记录的点击部件
     };
 
     // 切换爆炸图
@@ -418,15 +499,119 @@ export default {
       left: '50%',
       transform: 'translateX(-50%)',
       width: '200px',
-      height:'40px',
+      height: '40px',
       zIndex: 1001,
       flexDirection: 'column',  // 垂直排列
       justifyContent: 'flex-end', // 使滑动条居于底部
     };
 
+
+
+    // 进入/退出测量模式
+    const measure = () => {
+      // console.log('isMeasuring:', isMeasuring.value);
+      isMeasuring.value = !isMeasuring.value;
+      // console.log('isMeasuring:', isMeasuring.value);
+
+      if (!isMeasuring.value) {
+        resetMeasurement(); // 退出测量模式时重置
+      } else {
+        measurePoints.value = []; // 进入测量模式时清空测量点
+        measureResult.value = null;
+      }
+    };
+
+    // 重置测量
+    const resetMeasurement = () => {
+      if (measureLine) {
+        scene.remove(measureLine);
+        measureLine = null;
+      }
+      if (tempLine) {
+        scene.remove(tempLine);
+        tempLine = null;
+      }
+      if (measureLabel) {
+        scene.remove(measureLabel);
+        measureLabel = null;
+      }
+      measureSpheres.forEach(sphere => scene.remove(sphere));
+      measureSpheres = [];
+      measurePoints.value = [];
+      measureResult.value = null;
+    };
+
+    // 计算两点之间的距离
+    const calculateDistance = (point1, point2) => {
+      return point1.distanceTo(point2).toFixed(2); // 保留两位小数
+    };
+
+    let measureSpheres = []; // 存储两个端点的正方体标记
+
+    // 绘制辅助线
+    const drawMeasureLine = (point1, point2) => {
+      // 移除旧的辅助线和标记
+      if (measureLine) {
+        scene.remove(measureLine);
+      }
+      measureSpheres.forEach(sphere => scene.remove(sphere));
+      measureSpheres = [];
+
+      // 绘制辅助线
+      const geometry = new THREE.BufferGeometry().setFromPoints([point1, point2]);
+      const material = new THREE.LineBasicMaterial({
+        color: 0xff0000,  // 红色线条
+        linewidth: 40       // 设置线条宽度为 5
+      });
+      measureLine = new THREE.Line(geometry, material);
+      scene.add(measureLine);
+
+      // 在端点添加正方体标记
+      const sphereGeometry = new THREE.SphereGeometry(1, 16, 16); // 小正方体
+      const sphereMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff00 }); // 绿色标记
+      const sphere1 = new THREE.Mesh(sphereGeometry, sphereMaterial);
+      const sphere2 = new THREE.Mesh(sphereGeometry, sphereMaterial);
+      sphere1.position.copy(point1);
+      sphere2.position.copy(point2);
+      scene.add(sphere1);
+      scene.add(sphere2);
+      measureSpheres.push(sphere1, sphere2);
+    };
+
+    const drawMeasureMarker = (position) => {
+      const geometry = new THREE.BoxGeometry(0.5, 0.5, 0.5); // 小方块，大小为 0.5x0.5x0.5
+      const material = new THREE.MeshBasicMaterial({ color: 0xffffff }); // 白色
+      const marker = new THREE.Mesh(geometry, material);
+      marker.position.copy(position);
+      scene.add(marker);
+      measureSpheres.push(marker); // 存储标记
+    };
+
+    // 显示测量结果标签
+    const showMeasureLabel = (position, text) => {
+      // 移除旧的标签
+      if (measureLabel) {
+        scene.remove(measureLabel);
+      }
+
+      // 创建新的标签
+      const labelDiv = document.createElement('div');
+      labelDiv.className = 'measure-label';
+      labelDiv.textContent = `${text} m`; // 显示距离和单位
+      labelDiv.style.color = 'white';
+      labelDiv.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+      labelDiv.style.padding = '5px';
+      labelDiv.style.borderRadius = '3px';
+      labelDiv.style.pointerEvents = 'none'; // 防止标签拦截鼠标事件
+
+      measureLabel = new CSS2DObject(labelDiv);
+      measureLabel.position.copy(position);
+      scene.add(measureLabel);
+    };
+
     return {
       sceneContainer,
-     
+      isMeasuring,
       hoveredPart,
       selectedPart,
       mouseX,
@@ -439,7 +624,8 @@ export default {
       sideBarStyle,
       buttonStyle,
       sliderStyle,
-      switchClippingDirection
+      switchClippingDirection,
+      measure,
     };
   },
 };
@@ -458,9 +644,12 @@ div {
 
 /* 按钮的 hover 状态 */
 button:hover {
-  background: linear-gradient(135deg, #5a67f2, #5e3ddb);  /* hover 时背景颜色改变 */
-  transform: scale(1.05);  /* 放大效果 */
-  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3);  /* hover 时更强的阴影 */
+  background: linear-gradient(135deg, #5a67f2, #5e3ddb);
+  /* hover 时背景颜色改变 */
+  transform: scale(1.05);
+  /* 放大效果 */
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3);
+  /* hover 时更强的阴影 */
 }
 
 /* 滑块样式 */
@@ -474,11 +663,19 @@ input[type="range"] {
   opacity: 0.7;
   transition: opacity .2s;
 }
+
 input[type="range"]::-moz-range-thumb {
   width: 20px;
   height: 20px;
   background: #007bff;
   border-radius: 50%;
   cursor: pointer;
+}
+
+.measure-label {
+  position: absolute;
+  pointer-events: none;
+  font-size: 14px;
+  white-space: nowrap;
 }
 </style>
