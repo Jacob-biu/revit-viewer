@@ -1,39 +1,29 @@
 <template>
   <div ref="sceneContainer" style="width: 100%; height: 100%; position: relative;">
-    <!-- 爆炸图切换按钮 -->
-    <!-- <button @click="toggleExplodedView" :style="{
-      position: 'absolute',
-      bottom: '20px',
-      left: '20px',
-      zIndex: 1001,
-      padding: '10px 20px',  /* 增加按钮的左右内边距，使按钮看起来更平衡 */
-      background: '#007bff',
-      color: 'white',
-      border: 'none',
-      borderRadius: '5px',
-      cursor: 'pointer',
-      fontSize: '14px', /* 调整字体大小 */
-      fontWeight: 'bold'  /* 增强按钮文字的可见性 */
-    }">
-      {{ isExploded ? '恢复原图' : '显示爆炸图' }}
-    </button> -->
-
     <!-- 悬浮侧边框 -->
     <div :style="sideBarStyle">
       <!-- 爆炸图切换按钮 -->
       <button @click="toggleExplodedView" :style="buttonStyle">
         {{ isExploded ? '恢复原图' : '显示爆炸图' }}
       </button>
-      <!-- 预留按钮2 -->
-      <button :style="buttonStyle">
-        按钮2
+      <!-- 剖切功能按钮 -->
+      <button @click="toggleClipping" :style="buttonStyle">
+        {{ isClipping ? '关闭剖切' : '开启剖切' }}
       </button>
-      <!-- 预留按钮3 -->
-      <button :style="buttonStyle">
-        按钮3
+      <!-- 切换剖切方向按钮 -->
+      <button @click="switchClippingDirection" :style="buttonStyle">
+        切换剖切方向 ({{ currentDirection }})
+      </button>
+      <!--测量-->
+      <button @click="measure" :style="buttonStyle">
+        {{ isMeasuring ? '关闭测量' : '测量' }}
       </button>
     </div>
 
+    <!-- 剖切滑块 -->
+    <div v-if="isClipping" :style="sliderStyle">
+      <input type="range" v-model="clipPosition" min="-100" max="100" step="1" style="width: 100%;" />
+    </div>
 
     <!-- 鼠标悬浮时显示部件信息 -->
     <div v-if="hoveredPart" :style="{
@@ -166,8 +156,12 @@ export default {
     const mouseX = ref(0);
     const mouseY = ref(0);
     const isExploded = ref(false);  // 是否显示爆炸图
+    const isClipping = ref(false);  // 是否开启剖切
+    const clipPosition = ref(0);  // 剖切位置
+    const currentDirection = ref("X");  // 当前剖切方向
     const originalPositions = new Map();  // 存储部件的原始位置
     let previousClickedObject = null;  // 记录上次点击的物体
+    let clipPlane = null;  // 剖切平面
 
     // 加载GLTF文件的函数
     const loadGLTF = (file) => {
@@ -321,6 +315,57 @@ export default {
       });
     };
 
+    // 切换剖切功能
+    const toggleClipping = () => {
+      isClipping.value = !isClipping.value;
+
+      if (isClipping.value) {
+        // 创建剖切平面
+        updateClipPlane();
+      } else {
+        // 关闭剖切
+        renderer.clippingPlanes = [];
+      }
+    };
+
+    // 更新剖切平面
+    const updateClipPlane = () => {
+      if (!isClipping.value) return;
+
+      let normal;
+      switch (currentDirection.value) {
+        case "X":
+          normal = new THREE.Vector3(1, 0, 0);
+          break;
+        case "Y":
+          normal = new THREE.Vector3(0, 1, 0);
+          break;
+        case "Z":
+          normal = new THREE.Vector3(0, 0, 1);
+          break;
+        default:
+          normal = new THREE.Vector3(1, 0, 0);
+      }
+
+      clipPlane = new THREE.Plane(normal, clipPosition.value);
+      renderer.clippingPlanes = [clipPlane];
+    };
+
+    // 切换剖切方向
+    const switchClippingDirection = () => {
+      const directions = ["X", "Y", "Z"];
+      const currentIndex = directions.indexOf(currentDirection.value);
+      currentDirection.value = directions[(currentIndex + 1) % directions.length];
+      updateClipPlane();
+    };
+
+    // 监听剖切位置的变化
+    watch(clipPosition, (newValue) => {
+      if (clipPlane) {
+        clipPlane.constant = newValue;
+      }
+    });
+
     watch(() => props.file, (newFile) => {
       if (newFile) {
         loadGLTF(newFile);
@@ -367,24 +412,34 @@ export default {
       transition: 'all 0.3s ease',  // 平滑过渡效果
     };
 
-    // 按钮的 hover 状态
-    const hoverButtonStyle = {
-      ...buttonStyle,
-      background: 'linear-gradient(135deg, #5a67f2, #5e3ddb)',  // hover 时改变背景色
-      transform: 'scale(1.05)',  // 按钮放大效果
+    const sliderStyle = {
+      position: 'fixed',
+      bottom: '20vh',
+      left: '50%',
+      transform: 'translateX(-50%)',
+      width: '200px',
+      height:'40px',
+      zIndex: 1001,
+      flexDirection: 'column',  // 垂直排列
+      justifyContent: 'flex-end', // 使滑动条居于底部
     };
 
     return {
       sceneContainer,
+     
       hoveredPart,
       selectedPart,
       mouseX,
       mouseY,
       isExploded,
+      isClipping,
+      clipPosition,
       toggleExplodedView,
+      toggleClipping,
       sideBarStyle,
       buttonStyle,
-      hoverButtonStyle,
+      sliderStyle,
+      switchClippingDirection
     };
   },
 };
@@ -406,5 +461,24 @@ button:hover {
   background: linear-gradient(135deg, #5a67f2, #5e3ddb);  /* hover 时背景颜色改变 */
   transform: scale(1.05);  /* 放大效果 */
   box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3);  /* hover 时更强的阴影 */
+}
+
+/* 滑块样式 */
+input[type="range"] {
+  -webkit-appearance: none;
+  width: 100%;
+  height: 8px;
+  background: #ddd;
+  border-radius: 5px;
+  outline: none;
+  opacity: 0.7;
+  transition: opacity .2s;
+}
+input[type="range"]::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  background: #007bff;
+  border-radius: 50%;
+  cursor: pointer;
 }
 </style>
