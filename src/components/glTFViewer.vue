@@ -218,7 +218,7 @@ export default {
           const blob = fileMap.get(normalizedURL);
           const blobURL = URL.createObjectURL(blob);
           blobURLs.push(blobURL);
-          console.log('Resolved URL to Blob:', blobURL);
+          // console.log('Resolved URL to Blob:', blobURL);
           return blobURL;
         }
 
@@ -239,6 +239,7 @@ export default {
         undefined,
         (error) => {
           console.error("Error loading model:", error);
+          alert("Error loading model:", error);  // 弹出提示框
         }
       );
     };

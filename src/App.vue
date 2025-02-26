@@ -39,10 +39,48 @@ export default {
     const files = ref([]);  // 存储上传的文件
 
     // 文件上传处理方法
-    const handleFileChange = (event) => {
+    const handleFileChange = async (event) => {
       const selectedFiles = Array.from(event.target.files);  // 获取选择的文件列表
       if (selectedFiles.length) {
-        files.value = selectedFiles;  // 更新文件数据
+        const { isValid, message } = await validateFiles(selectedFiles);
+        if (isValid) {
+          files.value = selectedFiles;  // 更新文件数据
+        } else {
+          alert(message);  // 弹出提示框
+        }
+      }
+    };
+
+    // 验证文件是否匹配
+    const validateFiles = async (files) => {
+      const hasGLB = files.some(file => file.name.endsWith('.glb'));  // 检查是否有 .glb 文件
+      const gltfFile = files.find(file => file.name.endsWith('.gltf'));  // 查找 .gltf 文件
+      const binFiles = files.filter(file => file.name.endsWith('.bin'));  // 查找所有 .bin 文件
+
+      if (hasGLB) {
+        // 如果有 .glb 文件，则不需要检查 .gltf 和 .bin 文件
+        return { isValid: true, message: '' };
+      } else if (gltfFile) {
+        // 如果有 .gltf 文件，检查其内容
+        const gltfContent = await gltfFile.text();
+        const gltfJson = JSON.parse(gltfContent);
+
+        // 检查 .gltf 文件的 buffers 字段
+        if (gltfJson.buffers && gltfJson.buffers.length > 0) {
+          for (const buffer of gltfJson.buffers) {
+            if (buffer.uri && !buffer.uri.startsWith('data:')) {
+              // 如果 uri 是路径而不是 data:，则需要检查对应的 .bin 文件是否存在
+              const binFileExists = binFiles.some(binFile => binFile.name === buffer.uri);
+              if (!binFileExists) {
+                return { isValid: false, message: `缺少引用的 .bin 文件: ${buffer.uri}` };
+              }
+            }
+          }
+        }
+        return { isValid: true, message: '' };
+      } else {
+        // 如果没有 .gltf 文件，则提示
+        return { isValid: false, message: '缺少 .gltf 文件' };
       }
     };
 
@@ -52,10 +90,16 @@ export default {
     };
 
     // 处理文件拖拽上传
-    const handleDrop = (event) => {
+    const handleDrop = async (event) => {
+      event.preventDefault();
       const droppedFiles = Array.from(event.dataTransfer.files);  // 获取拖拽的文件
       if (droppedFiles.length) {
-        files.value = droppedFiles;  // 更新文件数据
+        const { isValid, message } = await validateFiles(droppedFiles);
+        if (isValid) {
+          files.value = droppedFiles;  // 更新文件数据
+        } else {
+          alert(message);  // 弹出提示框
+        }
       }
     };
 
