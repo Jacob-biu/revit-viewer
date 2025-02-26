@@ -142,13 +142,14 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
 import { CSS2DObject, CSS2DRenderer } from "three/examples/jsm/renderers/CSS2DRenderer";
+import { LoadingManager } from "three";
 
 export default {
   name: "glTFViewer",
   props: {
-    file: {
-      type: File,
-      default: null,
+    files: {
+      type: Array,
+      default: () => [],
     },
   },
   setup(props) {
@@ -167,7 +168,7 @@ export default {
     let clipPlane = null;  // 剖切平面
     let css2Renderer; // 用于显示标签的渲染器
 
-    
+
     const isMeasuring = ref(false); // 是否处于测量模式
     const measurePoints = ref([]); // 存储测量点
     const measureResult = ref(null); // 测量结果
@@ -175,28 +176,108 @@ export default {
     let measureLabel = null; // 测量结果标签
 
 
-    // 加载GLTF文件的函数
-    const loadGLTF = (file) => {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const contents = e.target.result;
-        const loader = new GLTFLoader();
-        loader.parse(contents, "", (gltf) => {
-          if (model) {
-            scene.remove(model);
-          }
-          model = gltf.scene;
-          scene.add(model);
-          model.traverse((child) => {
-            if (child.isMesh) {
-              child.name = child.name || `Unnamed ${child.uuid}`;
-              originalPositions.set(child, child.position.clone());  // 保存原始位置
-            }
-          });
-        });
-      };
-      reader.readAsArrayBuffer(file);
+    // 加载 GLTF/GLB 文件
+
+    // 加载 GLTF/GLB 文件
+    // 加载 GLTF/GLB 文件
+    const loadModel = async (files) => {
+      // 将 files 数组转换为 fileMap
+      const fileMap = new Map();
+      files.forEach(file => {
+        // 使用文件名称作为路径（确保路径是相对路径）
+        fileMap.set(file.name, file);
+      });
+      // console.log('fileMap:', fileMap);
+
+      // 查找根文件（.gltf 或 .glb）
+      let rootFile;
+      let rootPath;
+      Array.from(fileMap).forEach(([path, file]) => {
+        if (file.name.match(/\.(gltf|glb)$/)) {
+          rootFile = file;
+          rootPath = path.replace(file.name, '');
+        }
+      });
+
+      if (!rootFile) {
+        console.error("No .gltf or .glb asset found.");
+        return;
+      }
+
+      const blobURLs = [];
+      const manager = new LoadingManager();
+
+      // 设置 URL 修改器
+      manager.setURLModifier((url) => {
+        // 将相对路径转换为绝对路径
+        const normalizedURL = rootPath + decodeURI(url)
+          .replace(/^.*\//, '');  // 去除协议和路径，只保留文件名
+        // console.log('Resolving URL:', url, 'Normalized URL:', normalizedURL);
+
+        if (fileMap.has(normalizedURL)) {
+          const blob = fileMap.get(normalizedURL);
+          const blobURL = URL.createObjectURL(blob);
+          blobURLs.push(blobURL);
+          console.log('Resolved URL to Blob:', blobURL);
+          return blobURL;
+        }
+
+        console.warn('File not found in fileMap:', normalizedURL);
+        return url; // 返回原始 URL
+      });
+
+      const loader = new GLTFLoader(manager); // 将 manager 传递给 GLTFLoader
+      const fileURL = typeof rootFile === 'string' ? rootFile : URL.createObjectURL(rootFile);
+
+      loader.load(
+        fileURL,
+        (gltf) => {
+          setupModel(gltf.scene);
+          blobURLs.forEach(URL.revokeObjectURL);
+          if (typeof rootFile === 'object') URL.revokeObjectURL(fileURL);
+        },
+        undefined,
+        (error) => {
+          console.error("Error loading model:", error);
+        }
+      );
     };
+
+    // 读取文件为 ArrayBuffer
+    // const readFileAsArrayBuffer = (file) => {
+    //   return new Promise((resolve, reject) => {
+    //     const reader = new FileReader();
+    //     reader.onload = () => resolve(reader.result);
+    //     reader.onerror = () => reject(reader.error);
+    //     reader.readAsArrayBuffer(file);
+    //   });
+    // };
+
+    // 读取文件为文本
+    // const readFileAsText = (file) => {
+    //   return new Promise((resolve, reject) => {
+    //     const reader = new FileReader();
+    //     reader.onload = () => resolve(reader.result);
+    //     reader.onerror = () => reject(reader.error);
+    //     reader.readAsText(file);
+    //   });
+    // };
+
+    // 设置模型
+    const setupModel = (modelScene) => {
+      if (model) {
+        scene.remove(model);
+      }
+      model = modelScene;
+      scene.add(model);
+      model.traverse((child) => {
+        if (child.isMesh) {
+          child.name = child.name || `Unnamed ${child.uuid}`;
+          originalPositions.set(child, child.position.clone());
+        }
+      });
+    };
+
 
     // 获取部件的尺寸
     const getDimensions = (object) => {
@@ -447,9 +528,10 @@ export default {
       }
     });
 
-    watch(() => props.file, (newFile) => {
-      if (newFile) {
-        loadGLTF(newFile);
+    // 监听 files 的变化
+    watch(() => props.files, (newFiles) => {
+      if (newFiles.length) {
+        loadModel(newFiles);
       }
     });
 
