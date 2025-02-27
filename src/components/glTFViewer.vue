@@ -177,9 +177,6 @@ export default {
 
 
     // 加载 GLTF/GLB 文件
-
-    // 加载 GLTF/GLB 文件
-    // 加载 GLTF/GLB 文件
     const loadModel = async (files) => {
       // 将 files 数组转换为 fileMap
       const fileMap = new Map();
@@ -715,7 +712,6 @@ export default {
 </script>
 
 <style scoped>
-/* 样式部分保持不变 */
 div {
   margin: 0;
   display: flex;
