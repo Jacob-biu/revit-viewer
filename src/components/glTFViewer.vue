@@ -847,6 +847,8 @@ export default {
       mouseY,
       isExploded,
       isClipping,
+      showGrid,
+      showWireframe,
       clipPosition,
       toggleExplodedView,
       toggleClipping,
