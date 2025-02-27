@@ -2,10 +2,25 @@
   <div ref="sceneContainer" style="width: 100%; height: 100%; position: relative;">
     <!-- 悬浮侧边框 -->
     <div :style="sideBarStyle">
+      <!-- 亮度调节滑动条 -->
+      <div style="width: 100%; height:fit-content; margin-bottom:12px; display:flex; flex-direction:row; justify-content: center; align-items: center;">
+        <label for="brightness" style="color: white; font-size: 14px;">亮度调节</label>
+        <input
+          type="range"
+          id="brightness"
+          v-model="brightness"
+          min="0.1"
+          max="3"
+          step="0.1"
+          :style="brightnessSliderStyle"
+        />
+      </div>
+
       <!-- 爆炸图切换按钮 -->
       <button @click="toggleExplodedView" :style="buttonStyle">
         {{ isExploded ? '恢复原图' : '显示爆炸图' }}
       </button>
+
       <!-- 剖切功能按钮 -->
       <button @click="toggleClipping" :style="buttonStyle">
         {{ isClipping ? '关闭剖切' : '开启剖切' }}
@@ -137,7 +152,7 @@
 </template>
 
 <script>
-import { ref, watch, onMounted } from "vue";
+import { ref, watch, onMounted, onUnmounted } from "vue";
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
@@ -174,6 +189,10 @@ export default {
     const measureResult = ref(null); // 测量结果
     let measureLine = null; // 辅助线对象
     let measureLabel = null; // 测量结果标签
+
+    const ambientLight = ref(null); // 用于存储环境光
+    const directionalLight = ref(null); // 用于存储平行光
+    const brightness = ref(1.5); // 亮度值，范围 0 到 2
 
 
     // 加载 GLTF/GLB 文件
@@ -299,30 +318,30 @@ export default {
       renderer.setSize(window.innerWidth, window.innerHeight);
       sceneContainer.value.appendChild(renderer.domElement);
 
-      const ambientLight = new THREE.AmbientLight(0x404040, 10);
-      scene.add(ambientLight);
+      // 初始化环境光
+      ambientLight.value = new THREE.AmbientLight(0x404040, brightness.value * 10);
+      scene.add(ambientLight.value);
 
-      const directionalLight = new THREE.DirectionalLight(0xffffff, 1.5);
-      directionalLight.position.set(50, 50, 50);
-      scene.add(directionalLight);
+      // 初始化平行光
+      directionalLight.value = new THREE.DirectionalLight(0xffffff, brightness.value * 1.5);
+      directionalLight.value.position.set(50, 50, 50);
+      scene.add(directionalLight.value);
 
       camera.position.z = 200;
 
       // 初始化 OrbitControls
       controls = new OrbitControls(camera, renderer.domElement);
-      controls.enableDamping = true; // 启用阻尼效果，使旋转更平滑
-      controls.dampingFactor = 0.25; // 阻尼系数
-      controls.screenSpacePanning = false; // 禁用屏幕空间平移
-      controls.minDistance = 10; // 相机与目标的最小距离
-      controls.maxDistance = 1000; // 相机与目标的最大距离
-
-      // 解除旋转限制
-      controls.enableRotate = true; // 启用旋转
-      controls.rotateSpeed = 1.0; // 旋转速度
-      controls.minPolarAngle = 0; // 最小极角（0度，允许相机从正上方看）
-      controls.maxPolarAngle = Math.PI; // 最大极角（180度，允许相机从正下方看）
-      controls.minAzimuthAngle = -Infinity; // 最小方位角（无限制）
-      controls.maxAzimuthAngle = Infinity; // 最大方位角（无限制）
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.25;
+      controls.screenSpacePanning = false;
+      controls.minDistance = 10;
+      controls.maxDistance = 1000;
+      controls.enableRotate = true;
+      controls.rotateSpeed = 1.0;
+      controls.minPolarAngle = 0;
+      controls.maxPolarAngle = Math.PI;
+      controls.minAzimuthAngle = -Infinity;
+      controls.maxAzimuthAngle = Infinity;
 
       raycaster = new THREE.Raycaster();
       mouse = new THREE.Vector2();
@@ -332,7 +351,7 @@ export default {
       css2Renderer.setSize(window.innerWidth, window.innerHeight);
       css2Renderer.domElement.style.position = 'absolute';
       css2Renderer.domElement.style.top = '0';
-      css2Renderer.domElement.style.pointerEvents = 'none'; // 防止标签拦截鼠标事件
+      css2Renderer.domElement.style.pointerEvents = 'none';
       sceneContainer.value.appendChild(css2Renderer.domElement);
 
       animate();
@@ -557,6 +576,50 @@ export default {
       }
     });
 
+     // 监听亮度变化
+     watch(brightness, (newValue) => {
+      if (ambientLight.value) {
+        ambientLight.value.intensity = newValue * 10; // 调整环境光强度
+      }
+      if (directionalLight.value) {
+        directionalLight.value.intensity = newValue * 1.5; // 调整平行光强度
+      }
+    });
+
+    // 键盘控制模型的翻转
+    const handleKeyDown = (event) => {
+      if (!model) return;
+
+      const rotationSpeed = 0.1; // 旋转速度
+
+      switch (event.key) {
+        case "ArrowUp": // 上键：向上翻转
+          model.rotation.x -= rotationSpeed;
+          break;
+        case "ArrowDown": // 下键：向下翻转
+          model.rotation.x += rotationSpeed;
+          break;
+        case "ArrowLeft": // 左键：向左翻转
+          model.rotation.y -= rotationSpeed;
+          break;
+        case "ArrowRight": // 右键：向右翻转
+          model.rotation.y += rotationSpeed;
+          break;
+        default:
+          break;
+      }
+    };
+
+    // 监听键盘事件
+    onMounted(() => {
+      window.addEventListener("keydown", handleKeyDown);
+    });
+
+    // 组件卸载时移除事件监听
+    onUnmounted(() => {
+      window.removeEventListener("keydown", handleKeyDown);
+    });
+
     onMounted(() => {
       initScene();
       window.addEventListener("mousemove", handleMouseMove);
@@ -568,7 +631,7 @@ export default {
       top: '50%',  // 垂直居中
       left: '20px',  // 左侧定位
       transform: 'translateY(-50%)',  // 精确居中
-      width: '150px',
+      width: '180px',
       background: 'transparent',
       color: 'white',
       padding: '10px',  // 为了按钮之间有空隙
@@ -607,6 +670,11 @@ export default {
       zIndex: 1001,
       flexDirection: 'column',  // 垂直排列
       justifyContent: 'flex-end', // 使滑动条居于底部
+    };
+
+    // 亮度调节滑动条样式
+    const brightnessSliderStyle = {
+      width: '100%',
     };
 
 
@@ -730,6 +798,8 @@ export default {
       sliderStyle,
       switchClippingDirection,
       measure,
+      brightness,
+      brightnessSliderStyle,
     };
   },
 };
