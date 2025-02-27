@@ -434,6 +434,11 @@ export default {
         return;
       }
 
+      // 阻止事件冒泡，避免点击侧边栏按钮时触发场景中的点击事件
+      if (event.target.tagName.toLowerCase() === 'button' || event.target.tagName.toLowerCase() === 'input') {
+        return;
+      }
+
       // 左键点击逻辑
       if (isMeasuring.value) {
         // 测量模式下的逻辑
