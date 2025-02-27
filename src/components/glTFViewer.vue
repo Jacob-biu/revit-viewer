@@ -426,8 +426,17 @@ export default {
     // let tempSphere = null; // 临时标记
 
     const handleClick = (event) => {
+      // 判断是否是鼠标右键点击
+      if (event.button === 2) { // 2 表示鼠标右键
+        if (isMeasuring.value) {
+          resetMeasurement(); // 取消测量
+        }
+        return;
+      }
+
+      // 左键点击逻辑
       if (isMeasuring.value) {
-        // 获取点击的 3D 坐标
+        // 测量模式下的逻辑
         mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
         mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
         raycaster.setFromCamera(mouse, camera);
@@ -467,15 +476,12 @@ export default {
           resetMeasurement();
         }
       } else {
-        // 非测量模式下，显示部件信息
+        // 非测量模式下的逻辑
         if (!hoveredPart.value) {
-          // 点击空白处时，清除所有状态
           selectedPart.value = null;
           if (previousClickedObject) {
             previousClickedObject.material.emissive.set(0x000000);
-            previousClickedObject = null;
           }
-          hoveredPart.value = null; // 清除 hoveredPart 状态
           return;
         }
 
@@ -505,7 +511,7 @@ export default {
         }
       }
     };
-    
+
     // 切换 Wireframe 显示
     const toggleWireframe = () => {
       showWireframe.value = !showWireframe.value;
@@ -654,12 +660,22 @@ export default {
     // 组件卸载时移除事件监听
     onUnmounted(() => {
       window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("mousedown", (event) => {
+        if (event.button === 2) {
+          handleClick(event);
+        }
+      });
     });
 
     onMounted(() => {
       initScene();
       window.addEventListener("mousemove", handleMouseMove);
       window.addEventListener("click", handleClick);  // 添加点击事件监听
+      window.addEventListener("mousedown", (event) => {
+        if (event.button === 2) { // 2 表示鼠标右键
+          handleClick(event); // 处理右键点击
+        }
+      });
     });
 
     const sideBarStyle = {
