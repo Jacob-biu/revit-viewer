@@ -3,18 +3,22 @@
     <!-- 悬浮侧边框 -->
     <div :style="sideBarStyle">
       <!-- 亮度调节滑动条 -->
-      <div style="width: 100%; height:fit-content; margin-bottom:12px; display:flex; flex-direction:row; justify-content: center; align-items: center;">
+      <div
+        style="width: 100%; height:fit-content; margin-bottom:12px; display:flex; flex-direction:row; justify-content: center; align-items: center;">
         <label for="brightness" style="color: white; font-size: 14px;">亮度调节</label>
-        <input
-          type="range"
-          id="brightness"
-          v-model="brightness"
-          min="0.1"
-          max="3"
-          step="0.1"
-          :style="brightnessSliderStyle"
-        />
+        <input type="range" id="brightness" v-model="brightness" min="0.1" max="3" step="0.1"
+          :style="brightnessSliderStyle" />
       </div>
+
+      <!-- Wireframe 切换按钮 -->
+      <button @click="toggleWireframe" :style="buttonStyle">
+        {{ showWireframe ? '隐藏线框' : '显示线框' }}
+      </button>
+
+      <!-- Grid 切换按钮 -->
+      <button @click="toggleGrid" :style="buttonStyle">
+        {{ showGrid ? '隐藏网格' : '显示网格' }}
+      </button>
 
       <!-- 爆炸图切换按钮 -->
       <button @click="toggleExplodedView" :style="buttonStyle">
@@ -193,6 +197,10 @@ export default {
     const ambientLight = ref(null); // 用于存储环境光
     const directionalLight = ref(null); // 用于存储平行光
     const brightness = ref(1.5); // 亮度值，范围 0 到 2
+
+    const showWireframe = ref(false); // 是否显示线框
+    const showGrid = ref(false); // 是否显示网格
+    let gridHelper = null; // 用于存储网格对象
 
 
     // 加载 GLTF/GLB 文件
@@ -497,6 +505,34 @@ export default {
         }
       }
     };
+    
+    // 切换 Wireframe 显示
+    const toggleWireframe = () => {
+      showWireframe.value = !showWireframe.value;
+      if (model) {
+        model.traverse((child) => {
+          if (child.isMesh) {
+            child.material.wireframe = showWireframe.value;
+          }
+        });
+      }
+    };
+
+    // 切换 Grid 显示
+    const toggleGrid = () => {
+      showGrid.value = !showGrid.value;
+      if (showGrid.value) {
+        // 创建并添加网格
+        gridHelper = new THREE.GridHelper(100, 10, 0x444444, 0x888888);
+        scene.add(gridHelper);
+      } else {
+        // 移除网格
+        if (gridHelper) {
+          scene.remove(gridHelper);
+          gridHelper = null;
+        }
+      }
+    };
 
     // 切换爆炸图
     const toggleExplodedView = () => {
@@ -576,8 +612,8 @@ export default {
       }
     });
 
-     // 监听亮度变化
-     watch(brightness, (newValue) => {
+    // 监听亮度变化
+    watch(brightness, (newValue) => {
       if (ambientLight.value) {
         ambientLight.value.intensity = newValue * 10; // 调整环境光强度
       }
@@ -793,6 +829,8 @@ export default {
       clipPosition,
       toggleExplodedView,
       toggleClipping,
+      toggleGrid,
+      toggleWireframe,
       sideBarStyle,
       buttonStyle,
       sliderStyle,
