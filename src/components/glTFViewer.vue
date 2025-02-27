@@ -84,7 +84,7 @@
     <!-- 固定显示部件信息 -->
     <div v-if="selectedPart" :style="{
       position: 'absolute',
-      bottom: '40px',  /* 将其固定在底部 */
+      bottom: '100px',  /* 将其固定在底部 */
       left: '20px',  /* 距离左边 20px */
       background: 'rgba(0, 0, 0, 0.7)',
       color: 'white',
@@ -431,27 +431,40 @@ export default {
       } else {
         // 非测量模式下，显示部件信息
         if (!hoveredPart.value) {
+          // 点击空白处时，清除所有状态
           selectedPart.value = null;
           if (previousClickedObject) {
             previousClickedObject.material.emissive.set(0x000000);
+            previousClickedObject = null;
           }
+          hoveredPart.value = null; // 清除 hoveredPart 状态
           return;
         }
 
         const object = model.getObjectByName(hoveredPart.value.name);
-        object.material.emissive.set(0xff0000);
 
-        if (previousClickedObject && previousClickedObject !== object) {
-          previousClickedObject.material.emissive.set(0x000000);
+        // 判断是否点击了同一个部件
+        if (previousClickedObject === object) {
+          // 如果点击了同一个部件，取消高亮和固定信息显示
+          object.material.emissive.set(0x000000);
+          selectedPart.value = null;
+          previousClickedObject = null;
+        } else {
+          // 如果点击了不同的部件，更新高亮和固定信息显示
+          object.material.emissive.set(0xff0000);
+
+          if (previousClickedObject && previousClickedObject !== object) {
+            previousClickedObject.material.emissive.set(0x000000);
+          }
+
+          selectedPart.value = {
+            ...hoveredPart.value,
+            mouseX: mouseX.value,
+            mouseY: mouseY.value,
+          };
+
+          previousClickedObject = object;
         }
-
-        selectedPart.value = {
-          ...hoveredPart.value,
-          mouseX: mouseX.value,
-          mouseY: mouseY.value,
-        };
-
-        previousClickedObject = object;
       }
     };
 
@@ -733,6 +746,7 @@ button:hover {
 
 /* 滑块样式 */
 input[type="range"] {
+  appearance: none;
   -webkit-appearance: none;
   width: 100%;
   height: 8px;
