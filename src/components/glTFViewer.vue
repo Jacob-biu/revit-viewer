@@ -308,10 +308,21 @@ export default {
 
       camera.position.z = 200;
 
+      // 初始化 OrbitControls
       controls = new OrbitControls(camera, renderer.domElement);
-      controls.enableDamping = true;
-      controls.dampingFactor = 0.25;
-      controls.screenSpacePanning = false;
+      controls.enableDamping = true; // 启用阻尼效果，使旋转更平滑
+      controls.dampingFactor = 0.25; // 阻尼系数
+      controls.screenSpacePanning = false; // 禁用屏幕空间平移
+      controls.minDistance = 10; // 相机与目标的最小距离
+      controls.maxDistance = 1000; // 相机与目标的最大距离
+
+      // 解除旋转限制
+      controls.enableRotate = true; // 启用旋转
+      controls.rotateSpeed = 1.0; // 旋转速度
+      controls.minPolarAngle = 0; // 最小极角（0度，允许相机从正上方看）
+      controls.maxPolarAngle = Math.PI; // 最大极角（180度，允许相机从正下方看）
+      controls.minAzimuthAngle = -Infinity; // 最小方位角（无限制）
+      controls.maxAzimuthAngle = Infinity; // 最大方位角（无限制）
 
       raycaster = new THREE.Raycaster();
       mouse = new THREE.Vector2();
