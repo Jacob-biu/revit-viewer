@@ -338,7 +338,18 @@ export default {
       camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
       renderer = new THREE.WebGLRenderer();
       renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.domElement.style.position = 'absolute'; // 确保渲染器定位正确
+      renderer.domElement.style.top = '0';
+      renderer.domElement.style.left = '0';
       sceneContainer.value.appendChild(renderer.domElement);
+      // 监听窗口大小变化，动态调整渲染器尺寸
+      window.addEventListener('resize', () => {
+        const width = window.innerWidth;
+        const height = window.innerHeight;
+        renderer.setSize(width, height);
+        camera.aspect = width / height;
+        camera.updateProjectionMatrix();
+      });
 
       // 初始化环境光
       ambientLight.value = new THREE.AmbientLight(0x404040, brightness.value * 10);
@@ -393,8 +404,12 @@ export default {
 
     // 鼠标移动事件
     const handleMouseMove = (event) => {
-      mouseX.value = event.clientX;
-      mouseY.value = event.clientY;
+      // 获取渲染器的边界框
+      const rect = renderer.domElement.getBoundingClientRect();
+
+      // 计算鼠标在渲染器中的位置
+      mouseX.value = event.clientX - rect.left;
+      mouseY.value = event.clientY - rect.top;
 
       if (!model) return;
 
@@ -456,8 +471,17 @@ export default {
       // 左键点击逻辑
       if (isMeasuring.value) {
         // 测量模式下的逻辑
-        mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-        mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+        // 获取渲染器的边界框
+        const rect = renderer.domElement.getBoundingClientRect();
+
+        // 计算鼠标在渲染器中的位置
+        const mouseX = event.clientX - rect.left;
+        const mouseY = event.clientY - rect.top;
+
+        // 将鼠标坐标转换为归一化设备坐标（NDC）
+        mouse.x = (mouseX / rect.width) * 2 - 1;
+        mouse.y = -(mouseY / rect.height) * 2 + 1;
+
         raycaster.setFromCamera(mouse, camera);
         const intersects = raycaster.intersectObjects(model.children, true);
 
