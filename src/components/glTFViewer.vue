@@ -295,12 +295,20 @@ export default {
       }
       model = modelScene;
       scene.add(model);
-      model.traverse((child) => {
-        if (child.isMesh) {
-          child.name = child.name || `Unnamed ${child.uuid}`;
-          originalPositions.set(child, child.position.clone());
+
+      // 递归遍历所有子对象，并存储它们的原始位置
+      const traverseAndStorePositions = (object) => {
+        if (object.isMesh || object.isGroup || object.isObject3D) {
+          originalPositions.set(object, object.position.clone());
+        }else{
+          console.log('object:', object);
         }
-      });
+        if (object.children && object.children.length > 0) {
+          object.children.forEach(child => traverseAndStorePositions(child));
+        }
+      };
+
+      traverseAndStorePositions(model);
     };
 
 
@@ -549,20 +557,25 @@ export default {
     const toggleExplodedView = () => {
       isExploded.value = !isExploded.value;
 
-      model.traverse((child) => {
-        if (child.isMesh) {
-          const originalPosition = originalPositions.get(child);
+      const traverseAndExplode = (object) => {
+        if (object.isMesh || object.isGroup || object.isObject3D) {
+          const originalPosition = originalPositions.get(object);
           if (isExploded.value) {
             // 计算爆炸位移
-            const direction = new THREE.Vector3().subVectors(child.position, model.position).normalize();
+            const direction = new THREE.Vector3().subVectors(object.position, model.position).normalize();
             const distance = 50;  // 爆炸距离
-            child.position.add(direction.multiplyScalar(distance));
+            object.position.add(direction.multiplyScalar(distance));
           } else {
             // 恢复原始位置
-            child.position.copy(originalPosition);
+            object.position.copy(originalPosition);
           }
         }
-      });
+        if (object.children && object.children.length > 0) {
+          object.children.forEach(child => traverseAndExplode(child));
+        }
+      };
+
+      traverseAndExplode(model);
     };
 
     // 切换剖切功能
