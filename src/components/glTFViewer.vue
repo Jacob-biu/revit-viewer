@@ -1,5 +1,11 @@
 <template>
   <div ref="sceneContainer" style="width: 100%; height: 100%; position: relative;">
+    <!-- 加载动画 -->
+    <div v-if="isLoading" :style="loadingStyle">
+      <div class="loading-spinner"></div>
+      <div class="loading-progress">{{ loadingProgress }}%</div>
+    </div>
+
     <!-- 悬浮侧边框 -->
     <div :style="sideBarStyle">
       <!-- 亮度调节滑动条 -->
@@ -202,16 +208,20 @@ export default {
     const showGrid = ref(false); // 是否显示网格
     let gridHelper = null; // 用于存储网格对象
 
+    const isLoading = ref(false); // 是否正在加载
+    const loadingProgress = ref(0); // 加载进度
+
 
     // 加载 GLTF/GLB 文件
     const loadModel = async (files) => {
+      isLoading.value = true; // 开始加载
+      loadingProgress.value = 0; // 初始化加载进度
+
       // 将 files 数组转换为 fileMap
       const fileMap = new Map();
       files.forEach(file => {
-        // 使用文件名称作为路径（确保路径是相对路径）
         fileMap.set(file.name, file);
       });
-      // console.log('fileMap:', fileMap);
 
       // 查找根文件（.gltf 或 .glb）
       let rootFile;
@@ -233,37 +243,33 @@ export default {
 
       // 设置 URL 修改器
       manager.setURLModifier((url) => {
-        // 将相对路径转换为绝对路径
-        const normalizedURL = rootPath + decodeURI(url)
-          .replace(/^.*\//, '');  // 去除协议和路径，只保留文件名
-        // console.log('Resolving URL:', url, 'Normalized URL:', normalizedURL);
-
+        const normalizedURL = rootPath + decodeURI(url).replace(/^.*\//, '');
         if (fileMap.has(normalizedURL)) {
           const blob = fileMap.get(normalizedURL);
           const blobURL = URL.createObjectURL(blob);
           blobURLs.push(blobURL);
-          // console.log('Resolved URL to Blob:', blobURL);
           return blobURL;
         }
-
-        console.warn('File not found in fileMap:', normalizedURL);
-        return url; // 返回原始 URL
+        return url;
       });
 
-      const loader = new GLTFLoader(manager); // 将 manager 传递给 GLTFLoader
-      const fileURL = typeof rootFile === 'string' ? rootFile : URL.createObjectURL(rootFile);
+      const loader = new GLTFLoader(manager);
 
+      // 监听加载进度
       loader.load(
-        fileURL,
+        URL.createObjectURL(rootFile),
         (gltf) => {
           setupModel(gltf.scene);
+          isLoading.value = false; // 加载完成
           blobURLs.forEach(URL.revokeObjectURL);
-          if (typeof rootFile === 'object') URL.revokeObjectURL(fileURL);
         },
-        undefined,
+        (xhr) => {
+          // 更新加载进度
+          loadingProgress.value = Math.round((xhr.loaded / xhr.total) * 100);
+        },
         (error) => {
           console.error("Error loading model:", error);
-          alert("Error loading model:", error);  // 弹出提示框
+          isLoading.value = false; // 加载失败
         }
       );
     };
@@ -300,7 +306,7 @@ export default {
       const traverseAndStorePositions = (object) => {
         if (object.isMesh || object.isGroup || object.isObject3D) {
           originalPositions.set(object, object.position.clone());
-        }else{
+        } else {
           console.log('object:', object);
         }
         if (object.children && object.children.length > 0) {
@@ -747,6 +753,15 @@ export default {
       width: '100%',
     };
 
+    const loadingStyle = {
+      position: 'absolute',
+      top: '50%',
+      left: '50%',
+      transform: 'translate(-50%, -50%)',
+      textAlign: 'center',
+      zIndex: 1002,
+    };
+
 
 
     // 进入/退出测量模式
@@ -874,6 +889,9 @@ export default {
       measure,
       brightness,
       brightnessSliderStyle,
+      isLoading,
+      loadingProgress,
+      loadingStyle,
     };
   },
 };
@@ -925,5 +943,30 @@ input[type="range"]::-moz-range-thumb {
   pointer-events: none;
   font-size: 14px;
   white-space: nowrap;
+}
+
+.loading-spinner {
+  border: 4px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  border-top: 4px solid #ffffff;
+  width: 40px;
+  height: 40px;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.loading-progress {
+  margin-top: 10px;
+  color: white;
+  font-size: 16px;
 }
 </style>
