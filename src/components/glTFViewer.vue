@@ -107,7 +107,7 @@
     </div>
 
     <!-- 固定显示部件信息 -->
-    <div v-if="selectedPart" :style="{
+    <div v-if="selectedPart" class="fixed-info" :style="{
       position: 'absolute',
       bottom: '100px',  /* 将其固定在底部 */
       left: '20px',  /* 距离左边 20px */
@@ -465,6 +465,7 @@ export default {
     let tempLine = null; // 临时辅助线
     // let tempSphere = null; // 临时标记
 
+    // 鼠标点击事件
     const handleClick = (event) => {
       // 判断是否是鼠标右键点击
       if (event.button === 2) { // 2 表示鼠标右键
@@ -476,6 +477,13 @@ export default {
 
       // 阻止事件冒泡，避免点击侧边栏按钮时触发场景中的点击事件
       if (event.target.tagName.toLowerCase() === 'button' || event.target.tagName.toLowerCase() === 'input') {
+        return;
+      }
+
+      // 判断是否点击了固定部件信息表格
+      const fixedInfoDiv = document.querySelector('.fixed-info'); // 获取固定部件信息的表格元素
+      if (fixedInfoDiv && fixedInfoDiv.contains(event.target)) {
+        // 如果点击的是表格内的内容，不隐藏表格
         return;
       }
 
@@ -531,37 +539,50 @@ export default {
         }
       } else {
         // 非测量模式下的逻辑
-        if (!hoveredPart.value) {
-          selectedPart.value = null;
+        const rect = renderer.domElement.getBoundingClientRect();
+        const mouseX = event.clientX - rect.left;
+        const mouseY = event.clientY - rect.top;
+
+        // 将鼠标坐标转换为归一化设备坐标（NDC）
+        mouse.x = (mouseX / rect.width) * 2 - 1;
+        mouse.y = -(mouseY / rect.height) * 2 + 1;
+
+        raycaster.setFromCamera(mouse, camera);
+        const intersects = raycaster.intersectObjects(model.children, true);
+
+        if (intersects.length > 0) {
+          const object = intersects[0].object;
+
+          // 判断是否点击了同一个部件
+          if (previousClickedObject === object) {
+            // 如果点击了同一个部件，取消高亮和固定信息显示
+            object.material.emissive.set(0x000000);
+            selectedPart.value = null;
+            previousClickedObject = null;
+          } else {
+            // 如果点击了不同的部件，更新高亮和固定信息显示
+            object.material.emissive.set(0xff0000);
+
+            if (previousClickedObject && previousClickedObject !== object) {
+              previousClickedObject.material.emissive.set(0x000000);
+            }
+
+            selectedPart.value = {
+              name: object.name,
+              type: object.type,
+              dimensions: getDimensions(object),
+              material: object.material,
+            };
+
+            previousClickedObject = object;
+          }
+        } else {
+          // 点击空白区域时，取消高亮和固定信息显示
           if (previousClickedObject) {
             previousClickedObject.material.emissive.set(0x000000);
           }
-          return;
-        }
-
-        const object = model.getObjectByName(hoveredPart.value.name);
-
-        // 判断是否点击了同一个部件
-        if (previousClickedObject === object) {
-          // 如果点击了同一个部件，取消高亮和固定信息显示
-          object.material.emissive.set(0x000000);
           selectedPart.value = null;
           previousClickedObject = null;
-        } else {
-          // 如果点击了不同的部件，更新高亮和固定信息显示
-          object.material.emissive.set(0xff0000);
-
-          if (previousClickedObject && previousClickedObject !== object) {
-            previousClickedObject.material.emissive.set(0x000000);
-          }
-
-          selectedPart.value = {
-            ...hoveredPart.value,
-            mouseX: mouseX.value,
-            mouseY: mouseY.value,
-          };
-
-          previousClickedObject = object;
         }
       }
     };
