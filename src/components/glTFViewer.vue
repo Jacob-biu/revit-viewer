@@ -302,6 +302,12 @@ export default {
       model = modelScene;
       scene.add(model);
 
+      // 计算模型的包围盒，并调整模型位置使其居中
+      const box = new THREE.Box3().setFromObject(model);
+      const center = new THREE.Vector3();
+      box.getCenter(center);
+      model.position.sub(center); // 将模型移动到场景中心
+
       // 递归遍历所有子对象，并存储它们的原始位置
       const traverseAndStorePositions = (object) => {
         if (object.isMesh || object.isGroup || object.isObject3D) {
@@ -360,7 +366,9 @@ export default {
       directionalLight.value.position.set(50, 50, 50);
       scene.add(directionalLight.value);
 
-      camera.position.z = 200;
+      // 设置相机位置，使其居中
+      camera.position.set(0, 0, 200); // 将相机放在 Z 轴正方向，距离模型 200 单位
+      camera.lookAt(0, 0, 0); // 让相机看向场景中心
 
       // 初始化 OrbitControls
       controls = new OrbitControls(camera, renderer.domElement);
@@ -375,6 +383,9 @@ export default {
       controls.maxPolarAngle = Math.PI;
       controls.minAzimuthAngle = -Infinity;
       controls.maxAzimuthAngle = Infinity;
+
+      // 设置 OrbitControls 的目标点为场景中心
+      controls.target.set(0, 0, 0);
 
       raycaster = new THREE.Raycaster();
       mouse = new THREE.Vector2();
