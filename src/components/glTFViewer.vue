@@ -405,19 +405,26 @@ export default {
       sceneContainer.value.appendChild(css2Renderer.domElement);
 
       // 添加三维坐标系
-      axesHelper = new THREE.AxesHelper(50);
+      axesHelper = new THREE.AxesHelper(100); // 调整坐标轴大小为 100
+      axesHelper.visible = false; // 默认隐藏
       scene.add(axesHelper);
 
       // 创建坐标系原点（一个小球）
       const originGeometry = new THREE.SphereGeometry(2, 16, 16);
       const originMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
       originPoint = new THREE.Mesh(originGeometry, originMaterial);
-      originPoint.position.set(0, 0, 0);
+      originPoint.position.set(0, 0, 0); // 初始位置在场景中心
       originPoint.visible = false; // 默认隐藏
       scene.add(originPoint);
 
       // 添加拖动控制
       dragControls = new DragControls([originPoint], camera, renderer.domElement);
+      dragControls.addEventListener('dragStart', () => {
+        controls.enabled = false; // 拖动时禁用 OrbitControls
+      });
+      dragControls.addEventListener('dragEnd', () => {
+        controls.enabled = true; // 拖动结束后启用 OrbitControls
+      });
       dragControls.addEventListener('drag', () => {
         if (currentDirection.value === "Free") {
           updateClipPlane(originPoint.position); // 拖动时更新剖切平面
@@ -683,11 +690,13 @@ export default {
         // 初始化剖切平面
         if (currentDirection.value === "Free") {
           originPoint.visible = true; // 显示坐标系原点
+          axesHelper.visible = true; // 显示坐标轴
           if (clipSlider.value) {
             clipSlider.value.style.display = 'none'; // 隐藏 range 滑动条
           }
           updateClipPlane(originPoint.position); // 自由剖切模式
         } else {
+          axesHelper.visible = true; // 显示坐标轴
           if (clipSlider.value) {
             clipSlider.value.style.display = 'block'; // 显示 range 滑动条
           }
@@ -697,6 +706,7 @@ export default {
         // 关闭剖切
         renderer.clippingPlanes = [];
         originPoint.visible = false; // 隐藏坐标系原点
+        axesHelper.visible = false; // 隐藏坐标轴
         if (clipSlider.value) {
           clipSlider.value.style.display = 'none'; // 隐藏 range 滑动条
         }
@@ -713,7 +723,7 @@ export default {
         const modelCenter = new THREE.Vector3(0, 0, 0); // 假设模型中心在场景原点
         normal = new THREE.Vector3().subVectors(originPosition, modelCenter).normalize();
 
-        // 更新XYZ轴的位置
+        // 更新坐标轴的位置
         axesHelper.position.copy(originPosition);
       } else {
         // 固定方向剖切模式
@@ -731,7 +741,7 @@ export default {
             normal = new THREE.Vector3(1, 0, 0);
         }
 
-        // 更新XYZ轴的位置
+        // 更新坐标轴的位置
         axesHelper.position.set(0, 0, 0);
       }
 
@@ -749,6 +759,7 @@ export default {
       if (currentDirection.value === "Free") {
         // 进入自由剖切模式
         originPoint.visible = true; // 显示坐标系原点
+        axesHelper.visible = true; // 显示坐标轴
         if (clipSlider.value) {
           clipSlider.value.style.display = 'none'; // 隐藏 range 滑动条
         }
@@ -756,6 +767,7 @@ export default {
       } else {
         // 进入固定方向剖切模式
         originPoint.visible = false; // 隐藏坐标系原点
+        axesHelper.visible = true; // 显示坐标轴
         if (clipSlider.value) {
           clipSlider.value.style.display = 'block'; // 显示 range 滑动条
         }
