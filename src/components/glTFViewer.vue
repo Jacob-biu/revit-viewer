@@ -43,8 +43,9 @@
     </div>
 
     <!-- 剖切滑块 -->
-    <div v-if="isClipping" :style="sliderStyle">
-      <input type="range" v-model="clipPosition" min="-100" max="100" step="1"
+    <!-- 剖切滑块 -->
+    <div v-if="isClipping" :style="sliderStyle" ref="clipSlider">
+      <input type="range" v-if="currentDirection !== 'Free'" v-model="clipPosition" min="-100" max="100" step="1"
         style="width: 100%; margin-bottom:20px;" />
       <!-- 切换剖切方向按钮 -->
       <button @click="switchClippingDirection" :style="buttonStyle">
@@ -167,6 +168,7 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
 import { CSS2DObject, CSS2DRenderer } from "three/examples/jsm/renderers/CSS2DRenderer";
+import { DragControls } from "three/examples/jsm/controls/DragControls";
 import { LoadingManager } from "three";
 
 export default {
@@ -179,6 +181,7 @@ export default {
   },
   setup(props) {
     const sceneContainer = ref(null);
+    const clipSlider = ref(null);
     let scene, camera, renderer, model, controls, raycaster, mouse;
     const hoveredPart = ref(null);  // 用于悬浮时显示的信息
     const selectedPart = ref(null);  // 用于点击时显示的固定信息
@@ -192,6 +195,9 @@ export default {
     let previousClickedObject = null;  // 记录上次点击的物体
     let clipPlane = null;  // 剖切平面
     let css2Renderer; // 用于显示标签的渲染器
+    let originPoint; // 坐标系原点
+    let dragControls; // 拖动控制器
+    let axesHelper; // 三维坐标系
 
 
     const isMeasuring = ref(false); // 是否处于测量模式
@@ -398,6 +404,27 @@ export default {
       css2Renderer.domElement.style.pointerEvents = 'none';
       sceneContainer.value.appendChild(css2Renderer.domElement);
 
+      // 添加三维坐标系
+      axesHelper = new THREE.AxesHelper(50);
+      scene.add(axesHelper);
+
+      // 创建坐标系原点（一个小球）
+      const originGeometry = new THREE.SphereGeometry(2, 16, 16);
+      const originMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
+      originPoint = new THREE.Mesh(originGeometry, originMaterial);
+      originPoint.position.set(0, 0, 0);
+      originPoint.visible = false; // 默认隐藏
+      scene.add(originPoint);
+
+      // 添加拖动控制
+      dragControls = new DragControls([originPoint], camera, renderer.domElement);
+      dragControls.addEventListener('drag', () => {
+        if (currentDirection.value === "Free") {
+          updateClipPlane(originPoint.position); // 拖动时更新剖切平面
+        }
+      });
+
+
       animate();
     };
 
@@ -458,6 +485,14 @@ export default {
         };
       } else {
         hoveredPart.value = null;
+      }
+      // 更新剖切位置
+      if (isClipping.value && currentDirection.value === "XYZ") {
+        const point = intersects.length > 0 ? intersects[0].point : null;
+        if (point) {
+          clipPosition.value = point.dot(clipPlane.normal);
+          updateClipPlane();
+        }
       }
     };
 
@@ -645,43 +680,87 @@ export default {
       isClipping.value = !isClipping.value;
 
       if (isClipping.value) {
-        // 创建剖切平面
-        updateClipPlane();
+        // 初始化剖切平面
+        if (currentDirection.value === "Free") {
+          originPoint.visible = true; // 显示坐标系原点
+          if (clipSlider.value) {
+            clipSlider.value.style.display = 'none'; // 隐藏 range 滑动条
+          }
+          updateClipPlane(originPoint.position); // 自由剖切模式
+        } else {
+          if (clipSlider.value) {
+            clipSlider.value.style.display = 'block'; // 显示 range 滑动条
+          }
+          updateClipPlane(); // 固定方向剖切模式
+        }
       } else {
         // 关闭剖切
         renderer.clippingPlanes = [];
+        originPoint.visible = false; // 隐藏坐标系原点
+        if (clipSlider.value) {
+          clipSlider.value.style.display = 'none'; // 隐藏 range 滑动条
+        }
       }
     };
 
     // 更新剖切平面
-    const updateClipPlane = () => {
+    const updateClipPlane = (originPosition = null) => {
       if (!isClipping.value) return;
 
       let normal;
-      switch (currentDirection.value) {
-        case "X":
-          normal = new THREE.Vector3(1, 0, 0);
-          break;
-        case "Y":
-          normal = new THREE.Vector3(0, 1, 0);
-          break;
-        case "Z":
-          normal = new THREE.Vector3(0, 0, 1);
-          break;
-        default:
-          normal = new THREE.Vector3(1, 0, 0);
+      if (currentDirection.value === "Free" && originPosition) {
+        // 自由剖切模式：根据坐标系原点计算法向量
+        const modelCenter = new THREE.Vector3(0, 0, 0); // 假设模型中心在场景原点
+        normal = new THREE.Vector3().subVectors(originPosition, modelCenter).normalize();
+
+        // 更新XYZ轴的位置
+        axesHelper.position.copy(originPosition);
+      } else {
+        // 固定方向剖切模式
+        switch (currentDirection.value) {
+          case "X":
+            normal = new THREE.Vector3(1, 0, 0);
+            break;
+          case "Y":
+            normal = new THREE.Vector3(0, 1, 0);
+            break;
+          case "Z":
+            normal = new THREE.Vector3(0, 0, 1);
+            break;
+          default:
+            normal = new THREE.Vector3(1, 0, 0);
+        }
+
+        // 更新XYZ轴的位置
+        axesHelper.position.set(0, 0, 0);
       }
 
-      clipPlane = new THREE.Plane(normal, clipPosition.value);
+      // 创建剖切平面
+      clipPlane = new THREE.Plane(normal, originPosition ? -originPosition.dot(normal) : clipPosition.value);
       renderer.clippingPlanes = [clipPlane];
     };
 
     // 切换剖切方向
     const switchClippingDirection = () => {
-      const directions = ["X", "Y", "Z"];
+      const directions = ["X", "Y", "Z", "Free"];
       const currentIndex = directions.indexOf(currentDirection.value);
       currentDirection.value = directions[(currentIndex + 1) % directions.length];
-      updateClipPlane();
+
+      if (currentDirection.value === "Free") {
+        // 进入自由剖切模式
+        originPoint.visible = true; // 显示坐标系原点
+        if (clipSlider.value) {
+          clipSlider.value.style.display = 'none'; // 隐藏 range 滑动条
+        }
+        updateClipPlane(originPoint.position); // 初始化剖切平面
+      } else {
+        // 进入固定方向剖切模式
+        originPoint.visible = false; // 隐藏坐标系原点
+        if (clipSlider.value) {
+          clipSlider.value.style.display = 'block'; // 显示 range 滑动条
+        }
+        updateClipPlane(); // 使用固定方向剖切
+      }
     };
 
     // 监听剖切位置的变化
@@ -948,6 +1027,7 @@ export default {
       isLoading,
       loadingProgress,
       loadingStyle,
+      currentDirection,
     };
   },
 };
