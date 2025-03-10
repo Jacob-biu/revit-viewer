@@ -71,9 +71,9 @@
     }">
       <table style="
         border-collapse: collapse;
-        width: 100%;  // 表格撑满容器
-        table-layout: auto;  // 自动列宽
-        margin: -2px;  // 抵消边距影响
+        width: 100%;  
+        table-layout: auto;  
+        margin: -2px;  
       ">
         <thead>
           <tr>
@@ -81,14 +81,14 @@
               text-align: left;
               padding: 6px 8px;
               border-bottom: 1px solid rgba(255,255,255,0.2);
-              white-space: nowrap;  // 禁止表头换行
+              white-space: nowrap;  
               font-size: 14px;
             ">Property</th>
             <th style="
               text-align: left;
               padding: 6px 8px;
               border-bottom: 1px solid rgba(255,255,255,0.2);
-              min-width: 80px;  // 值列最小宽度
+              min-width: 80px;  
               font-size: 14px;
             ">Value</th>
           </tr>
@@ -98,14 +98,14 @@
             <td style="
               padding: 6px 8px;
               border-bottom: 1px solid rgba(255,255,255,0.1);
-              white-space: nowrap;  // 属性名保持单行
+              white-space: nowrap;  
               font-size: 13px;
             ">Name</td>
             <td style="
               padding: 6px 8px;
               border-bottom: 1px solid rgba(255,255,255,0.1);
-              word-break: break-word;  // 允许值换行
-              max-width: 200px;  // 限制最大宽度
+              word-break: break-word;  
+              max-width: 200px;  
               font-size: 13px;
             ">{{ selectedPart.name }}</td>
           </tr>
