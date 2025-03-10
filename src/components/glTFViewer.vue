@@ -645,6 +645,16 @@ export default {
     const toggleGrid = () => {
       showGrid.value = !showGrid.value;
 
+      scene.children.slice().forEach(child => { // 使用副本遍历
+        if (child.isGridHelper) { // 添加网格标识
+          scene.remove(child);
+          // 移除材质和几何体（安全操作）
+          if (child.material) child.material.dispose();
+          if (child.geometry) child.geometry.dispose();
+        }
+      });
+      partGrids.value.clear();
+
       // 空间分区配置
       const gridConfig = {
         cellSize: 50,         // 分区单元尺寸
@@ -654,13 +664,6 @@ export default {
 
       // 空间分区存储
       const spatialGrid = new Map();
-
-      // 清理旧网格
-      partGrids.value.forEach(grid => {
-        scene.remove(grid);
-        grid.dispose();
-      });
-      partGrids.value.clear();
 
       if (showGrid.value) {
         // 第一阶段：空间分区
@@ -716,6 +719,8 @@ export default {
         0x666666,
         0x444444
       );
+      grid.isGridHelper = true; // 添加标识 <<< 新增这行
+
 
       const center = new THREE.Vector3();
       bbox.getCenter(center);
@@ -734,6 +739,8 @@ export default {
         0x888888,  // 集群网格使用高亮颜色
         0x666666
       );
+      grid.isGridHelper = true; // 添加标识 <<< 新增这行
+
 
       const center = new THREE.Vector3();
       clusterBbox.getCenter(center);
@@ -1199,7 +1206,6 @@ export default {
       loadingStyle,
       currentDirection,
       axisRanges,
-
     };
   },
 };
