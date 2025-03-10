@@ -1045,7 +1045,12 @@ export default {
 
     // 计算两点之间的距离
     const calculateDistance = (point1, point2) => {
-      return point1.distanceTo(point2).toFixed(2); // 保留两位小数
+      return {
+        total: point1.distanceTo(point2).toFixed(2),
+        dx: Math.abs(point2.x - point1.x).toFixed(2),
+        dy: Math.abs(point2.y - point1.y).toFixed(2),
+        dz: Math.abs(point2.z - point1.z).toFixed(2)
+      };
     };
 
     let measureSpheres = []; // 存储两个端点的正方体标记
@@ -1090,22 +1095,45 @@ export default {
     };
 
     // 显示测量结果标签
-    const showMeasureLabel = (position, text) => {
-      // 移除旧的标签
+    const showMeasureLabel = (position, result) => {
+      // 移除旧标签
       if (measureLabel) {
         scene.remove(measureLabel);
+        measureLabel.element.remove();
       }
 
-      // 创建新的标签
+      // 创建表格DOM元素
       const labelDiv = document.createElement('div');
       labelDiv.className = 'measure-label';
-      labelDiv.textContent = `${text} m`; // 显示距离和单位
+      labelDiv.style.background = 'rgba(40, 40, 40, 0.9)';
+      labelDiv.style.padding = '8px';
+      labelDiv.style.borderRadius = '4px';
       labelDiv.style.color = 'white';
-      labelDiv.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
-      labelDiv.style.padding = '5px';
-      labelDiv.style.borderRadius = '3px';
-      labelDiv.style.pointerEvents = 'none'; // 防止标签拦截鼠标事件
+      labelDiv.innerHTML = `
+    <table style="border-collapse: collapse;">
+      <tr>
+        <td colspan="2" style="text-align: center; padding-bottom: 4px;">测量结果</td>
+      </tr>
+      <tr>
+        <td style="padding-right: 8px;">总距离:</td>
+        <td>${result.total} m</td>
+      </tr>
+      <tr>
+        <td style="color: #ff4444;">X:</td>
+        <td>${result.dx} m</td>
+      </tr>
+      <tr>
+        <td style="color: #44ff44;">Y:</td>
+        <td>${result.dy} m</td>
+      </tr>
+      <tr>
+        <td style="color: #4444ff;">Z:</td>
+        <td>${result.dz} m</td>
+      </tr>
+    </table>
+  `;
 
+      // 创建CSS2D对象
       measureLabel = new CSS2DObject(labelDiv);
       measureLabel.position.copy(position);
       scene.add(measureLabel);
@@ -1186,10 +1214,20 @@ input[type="range"]::-moz-range-thumb {
 }
 
 .measure-label {
-  position: absolute;
-  pointer-events: none;
-  font-size: 14px;
+  font-family: Arial, sans-serif;
+  font-size: 12px;
+  backdrop-filter: blur(2px);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+}
+
+.measure-label table td {
+  padding: 2px 4px;
   white-space: nowrap;
+}
+
+.measure-label tr:first-child td {
+  border-bottom: 1px solid rgba(255,255,255,0.2);
+  padding-bottom: 4px;
 }
 
 .loading-spinner {
