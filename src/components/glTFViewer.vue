@@ -427,52 +427,55 @@ export default {
 
     // 鼠标移动事件
     const handleMouseMove = (event) => {
+      // 添加空值检查
+      if (!model || !model.children) return; // 新增检查
+
       // 获取渲染器的边界框
       const rect = renderer.domElement.getBoundingClientRect();
 
-      // 计算鼠标在渲染器中的位置
-      mouseX.value = event.clientX - rect.left;
-      mouseY.value = event.clientY - rect.top;
+      // 计算鼠标在渲染器中的位置（考虑画布偏移）
+      const mouseX = event.clientX - rect.left;
+      const mouseY = event.clientY - rect.top;
 
-      if (!model) return;
+      // 转换为归一化设备坐标（NDC）
+      mouse.x = (mouseX / rect.width) * 2 - 1;
+      mouse.y = - (mouseY / rect.height) * 2 + 1;
 
-      mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-      mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+      // 添加try-catch块
+      try {
+        raycaster.setFromCamera(mouse, camera);
+        const intersects = raycaster.intersectObjects(model.children, true);
 
-      raycaster.setFromCamera(mouse, camera);
-      const intersects = raycaster.intersectObjects(model.children, true);
+        if (isMeasuring.value && measurePoints.value.length === 1) {
+          if (intersects.length > 0) {
+            const point = intersects[0].point;
 
-      if (isMeasuring.value && measurePoints.value.length === 1) {
-        // 如果正在测量且已经点击了一个点，动态绘制临时辅助线
-        if (intersects.length > 0) {
-          const point = intersects[0].point;
+            if (tempLine) {
+              scene.remove(tempLine);
+            }
 
-          // 移除旧的临时辅助线
-          if (tempLine) {
-            scene.remove(tempLine);
+            const geometry = new THREE.BufferGeometry().setFromPoints([measurePoints.value[0], point]);
+            const material = new THREE.LineBasicMaterial({ color: 0xff0000 });
+            tempLine = new THREE.Line(geometry, material);
+            scene.add(tempLine);
           }
-
-          // 绘制新的临时辅助线
-          const geometry = new THREE.BufferGeometry().setFromPoints([measurePoints.value[0], point]);
-          const material = new THREE.LineBasicMaterial({ color: 0xff0000 });
-          tempLine = new THREE.Line(geometry, material);
-          scene.add(tempLine);
         }
-      }
 
-      // 更新剖切位置
-      if (isClipping.value && currentDirection.value === "XYZ") {
-        const point = intersects.length > 0 ? intersects[0].point : null;
-        if (point) {
-          clipPosition.value = point.dot(clipPlane.normal);
-          updateClipPlane();
+        if (isClipping.value && currentDirection.value === "XYZ") {
+          const point = intersects.length > 0 ? intersects[0].point : null;
+          if (point) {
+            clipPosition.value = point.dot(clipPlane.normal);
+            updateClipPlane();
+          }
         }
+      } catch (error) {
+        console.warn("Mouse move error:", error);
       }
     };
 
     // 鼠标点击事件
     let tempLine = null; // 临时辅助线
-    // let tempSphere = null; // 临时标记
+
 
     // 鼠标点击事件
     const handleClick = (event) => {
@@ -1217,7 +1220,7 @@ input[type="range"]::-moz-range-thumb {
   font-family: Arial, sans-serif;
   font-size: 12px;
   backdrop-filter: blur(2px);
-  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
 .measure-label table td {
@@ -1226,7 +1229,7 @@ input[type="range"]::-moz-range-thumb {
 }
 
 .measure-label tr:first-child td {
-  border-bottom: 1px solid rgba(255,255,255,0.2);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
   padding-bottom: 4px;
 }
 
