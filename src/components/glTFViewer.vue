@@ -40,7 +40,8 @@
     <!-- 剖切滑块 -->
     <!-- 剖切滑块 -->
     <div v-if="isClipping" :style="sliderStyle" ref="clipSlider">
-      <input type="range" v-if="currentDirection !== 'Free'" v-model="clipPosition" min="-100" max="100" step="1"
+      <input type="range" v-if="currentDirection !== 'Free'" v-model="clipPosition"
+        :min="axisRanges[currentDirection].min" :max="axisRanges[currentDirection].max" step="0.1"
         style="width: 100%; margin-bottom:20px;" />
       <!-- 切换剖切方向按钮 -->
       <button @click="switchClippingDirection" :style="buttonStyle">
@@ -201,6 +202,13 @@ export default {
 
     const partGrids = ref(new Map()) // 声明为响应式对象
 
+    // 在 setup 函数中添加
+    const axisRanges = ref({
+      X: { min: -100, max: 100 }, // 默认值
+      Y: { min: -100, max: 100 },
+      Z: { min: -100, max: 100 }
+    });
+
 
     // 加载 GLTF/GLB 文件
     const loadModel = async (files) => {
@@ -264,26 +272,6 @@ export default {
       );
     };
 
-    // 读取文件为 ArrayBuffer
-    // const readFileAsArrayBuffer = (file) => {
-    //   return new Promise((resolve, reject) => {
-    //     const reader = new FileReader();
-    //     reader.onload = () => resolve(reader.result);
-    //     reader.onerror = () => reject(reader.error);
-    //     reader.readAsArrayBuffer(file);
-    //   });
-    // };
-
-    // 读取文件为文本
-    // const readFileAsText = (file) => {
-    //   return new Promise((resolve, reject) => {
-    //     const reader = new FileReader();
-    //     reader.onload = () => resolve(reader.result);
-    //     reader.onerror = () => reject(reader.error);
-    //     reader.readAsText(file);
-    //   });
-    // };
-
     // 设置模型
     const setupModel = (modelScene) => {
       if (model) {
@@ -294,6 +282,12 @@ export default {
 
       // 计算模型的包围盒，并调整模型位置使其居中
       const box = new THREE.Box3().setFromObject(model);
+      // 更新轴范围（世界坐标系）
+      axisRanges.value = {
+        X: { min: box.min.x, max: box.max.x },
+        Y: { min: box.min.y, max: box.max.y },
+        Z: { min: box.min.z, max: box.max.z }
+      };
       const center = new THREE.Vector3();
       box.getCenter(center);
       model.position.sub(center); // 将模型移动到场景中心
@@ -819,34 +813,31 @@ export default {
 
       let normal;
       if (currentDirection.value === "Free" && originPosition) {
-        // 自由剖切模式：根据坐标系原点计算法向量
-        const modelCenter = new THREE.Vector3(0, 0, 0); // 假设模型中心在场景原点
-        normal = new THREE.Vector3().subVectors(originPosition, modelCenter).normalize();
-
-        // 更新坐标轴的位置
+        // 自由剖切模式：法向量指向模型中心
+        const modelCenter = new THREE.Vector3(0, 0, 0);
+        normal = new THREE.Vector3().subVectors(modelCenter, originPosition).normalize(); // 方向调整为指向中心
         axesHelper.position.copy(originPosition);
       } else {
-        // 固定方向剖切模式
+        // 固定方向剖切模式：法向量调整为负方向
         switch (currentDirection.value) {
           case "X":
-            normal = new THREE.Vector3(1, 0, 0);
+            normal = new THREE.Vector3(-1, 0, 0); // 改为负方向
             break;
           case "Y":
-            normal = new THREE.Vector3(0, 1, 0);
+            normal = new THREE.Vector3(0, -1, 0); // 改为负方向
             break;
           case "Z":
-            normal = new THREE.Vector3(0, 0, 1);
+            normal = new THREE.Vector3(0, 0, -1);
             break;
           default:
-            normal = new THREE.Vector3(1, 0, 0);
+            normal = new THREE.Vector3(-1, 0, 0);
         }
-
-        // 更新坐标轴的位置
         axesHelper.position.set(0, 0, 0);
       }
 
-      // 创建剖切平面
-      clipPlane = new THREE.Plane(normal, originPosition ? -originPosition.dot(normal) : clipPosition.value);
+      // 创建剖切平面（固定方向时直接使用 clipPosition.value）
+      const planeConstant = originPosition ? -originPosition.dot(normal) : clipPosition.value;
+      clipPlane = new THREE.Plane(normal, planeConstant);
       renderer.clippingPlanes = [clipPlane];
     };
 
@@ -875,6 +866,13 @@ export default {
       }
     };
 
+    watch(currentDirection, (newDir) => {
+      if (newDir !== 'Free') {
+        // 设置初始位置在模型中心
+        const range = axisRanges.value[newDir];
+        clipPosition.value = (range.min + range.max) / 2;
+      }
+    });
     // 监听剖切位置的变化
     watch(clipPosition, (newValue) => {
       if (clipPlane) {
@@ -1139,6 +1137,8 @@ export default {
       loadingProgress,
       loadingStyle,
       currentDirection,
+      axisRanges,
+
     };
   },
 };
