@@ -16,11 +16,6 @@
           :style="brightnessSliderStyle" />
       </div>
 
-      <!-- Wireframe 切换按钮 -->
-      <button @click="toggleWireframe" :style="buttonStyle">
-        {{ showWireframe ? '隐藏线框' : '显示线框' }}
-      </button>
-
       <!-- Grid 切换按钮 -->
       <button @click="toggleGrid" :style="buttonStyle">
         {{ showGrid ? '隐藏网格' : '显示网格' }}
@@ -53,108 +48,95 @@
       </button>
     </div>
 
-    <!-- 鼠标悬浮时显示部件信息 -->
-    <div v-if="hoveredPart" :style="{
-      position: 'absolute',
-      top: mouseY + 'px',
-      left: mouseX + 'px',
-      background: 'rgba(0, 0, 0, 0.7)',
-      color: 'white',
-      padding: '10px',
-      borderRadius: '5px',
-      pointerEvents: 'none',
-      zIndex: 1000,
-      minWidth: '150px',
-      maxWidth: '300px',
-      minHeight: '100px',
-      maxHeight: '300px',
-      width: 'auto',
-      height: 'auto',
-    }">
-      <table style="border-collapse: collapse; width: 100%;">
-        <thead>
-          <tr>
-            <th style="text-align: left; padding: 5px; border-bottom: 1px solid #ccc;">Property</th>
-            <th style="text-align: left; padding: 5px; border-bottom: 1px solid #ccc;">Value</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td style="padding: 5px; border-bottom: 1px solid #ccc;">Name</td>
-            <td style="padding: 5px; border-bottom: 1px solid #ccc;">{{ hoveredPart.name }}</td>
-          </tr>
-          <tr>
-            <td style="padding: 5px; border-bottom: 1px solid #ccc;">Type</td>
-            <td style="padding: 5px; border-bottom: 1px solid #ccc;">{{ hoveredPart.type }}</td>
-          </tr>
-          <tr v-if="hoveredPart.dimensions">
-            <td style="padding: 5px; border-bottom: 1px solid #ccc;">Width</td>
-            <td style="padding: 5px; border-bottom: 1px solid #ccc;">{{ hoveredPart.dimensions.width }}</td>
-          </tr>
-          <tr v-if="hoveredPart.dimensions">
-            <td style="padding: 5px; border-bottom: 1px solid #ccc;">Height</td>
-            <td style="padding: 5px; border-bottom: 1px solid #ccc;">{{ hoveredPart.dimensions.height }}</td>
-          </tr>
-          <tr v-if="hoveredPart.dimensions">
-            <td style="padding: 5px; border-bottom: 1px solid #ccc;">Depth</td>
-            <td style="padding: 5px; border-bottom: 1px solid #ccc;">{{ hoveredPart.dimensions.depth }}</td>
-          </tr>
-          <tr v-if="hoveredPart.material">
-            <td style="padding: 5px; border-bottom: 1px solid #ccc;">Material Color</td>
-            <td style="padding: 5px; border-bottom: 1px solid #ccc;">{{ hoveredPart.material.color.getStyle() }}</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-
     <!-- 固定显示部件信息 -->
     <div v-if="selectedPart" class="fixed-info" :style="{
-      position: 'absolute',
-      bottom: '100px',  /* 将其固定在底部 */
-      left: '20px',  /* 距离左边 20px */
-      background: 'rgba(0, 0, 0, 0.7)',
+      position: 'fixed',
+      top: '50%',
+      right: '20px',
+      transform: 'translateY(-50%)',
+      width: 'auto',  // 自适应宽度
+      minWidth: '180px',  // 最小宽度限制
+      maxWidth: '300px',  // 最大宽度限制
+      background: 'rgba(40, 40, 40, 0.9)',
       color: 'white',
-      padding: '10px',
+      padding: '12px',
       borderRadius: '5px',
-      zIndex: 1000,
-      minWidth: '150px',
-      maxWidth: '300px',
-      minHeight: '100px',
-      maxHeight: '300px',
-      width: 'auto',
+      zIndex: 1001,
+      boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
+      display: 'inline-block',  // 改为行内块布局
       height: 'auto',
+      minHeight: '120px',
+      backdropFilter: 'blur(8px)',
+      transition: 'all 0.3s ease'
     }">
-      <table style="border-collapse: collapse; width: 100%;">
+      <table style="
+        border-collapse: collapse;
+        width: 100%;  // 表格撑满容器
+        table-layout: auto;  // 自动列宽
+        margin: -2px;  // 抵消边距影响
+      ">
         <thead>
           <tr>
-            <th style="text-align: left; padding: 5px; border-bottom: 1px solid #ccc;">Property</th>
-            <th style="text-align: left; padding: 5px; border-bottom: 1px solid #ccc;">Value</th>
+            <th style="
+              text-align: left;
+              padding: 6px 8px;
+              border-bottom: 1px solid rgba(255,255,255,0.2);
+              white-space: nowrap;  // 禁止表头换行
+              font-size: 14px;
+            ">Property</th>
+            <th style="
+              text-align: left;
+              padding: 6px 8px;
+              border-bottom: 1px solid rgba(255,255,255,0.2);
+              min-width: 80px;  // 值列最小宽度
+              font-size: 14px;
+            ">Value</th>
           </tr>
         </thead>
         <tbody>
           <tr>
-            <td style="padding: 5px; border-bottom: 1px solid #ccc;">Name</td>
-            <td style="padding: 5px; border-bottom: 1px solid #ccc;">{{ selectedPart.name }}</td>
+            <td style="
+              padding: 6px 8px;
+              border-bottom: 1px solid rgba(255,255,255,0.1);
+              white-space: nowrap;  // 属性名保持单行
+              font-size: 13px;
+            ">Name</td>
+            <td style="
+              padding: 6px 8px;
+              border-bottom: 1px solid rgba(255,255,255,0.1);
+              word-break: break-word;  // 允许值换行
+              max-width: 200px;  // 限制最大宽度
+              font-size: 13px;
+            ">{{ selectedPart.name }}</td>
           </tr>
           <tr>
-            <td style="padding: 5px; border-bottom: 1px solid #ccc;">Type</td>
-            <td style="padding: 5px; border-bottom: 1px solid #ccc;">{{ selectedPart.type }}</td>
+            <td style="padding: 6px 8px; border-bottom: 1px solid rgba(255,255,255,0.1); white-space: nowrap;">Type</td>
+            <td style="padding: 6px 8px; border-bottom: 1px solid rgba(255,255,255,0.1); word-break: break-word;">{{
+              selectedPart.type }}</td>
           </tr>
           <tr v-if="selectedPart.dimensions">
-            <td style="padding: 5px; border-bottom: 1px solid #ccc;">Width</td>
-            <td style="padding: 5px; border-bottom: 1px solid #ccc;">{{ selectedPart.dimensions.width }}</td>
+            <td style="padding: 6px 8px; border-bottom: 1px solid rgba(255,255,255,0.1); white-space: nowrap;">Width
+            </td>
+            <td style="padding: 6px 8px; border-bottom: 1px solid rgba(255,255,255,0.1); word-break: break-word;">{{
+              selectedPart.dimensions.width }}</td>
           </tr>
           <tr v-if="selectedPart.dimensions">
-            <td style="padding: 5px; border-bottom: 1px solid #ccc;">Height</td>
-            <td style="padding: 5px; border-bottom: 1px solid #ccc;">{{ selectedPart.dimensions.height }}</td>
+            <td style="padding: 6px 8px; border-bottom: 1px solid rgba(255,255,255,0.1); white-space: nowrap;">Height
+            </td>
+            <td style="padding: 6px 8px; border-bottom: 1px solid rgba(255,255,255,0.1); word-break: break-word;">{{
+              selectedPart.dimensions.height }}</td>
           </tr>
           <tr v-if="selectedPart.dimensions">
-            <td style="padding: 5px; border-bottom: 1px solid #ccc;">Depth</td>
-            <td style="padding: 5px; border-bottom: 1px solid #ccc;">{{ selectedPart.dimensions.depth }}</td>
+            <td style="padding: 6px 8px; border-bottom: 1px solid rgba(255,255,255,0.1); white-space: nowrap;">Depth
+            </td>
+            <td style="padding: 6px 8px; border-bottom: 1px solid rgba(255,255,255,0.1); word-break: break-word;">{{
+              selectedPart.dimensions.depth }}</td>
           </tr>
           <tr v-if="selectedPart.material">
-            <td style="padding: 5px; border-bottom: 1px solid #ccc;">Material Color</td>
-            <td style="padding: 5px; border-bottom: 1px solid #ccc;">{{ selectedPart.material.color.getStyle() }}</td>
+            <td style="padding: 6px 8px; border-bottom: 1px solid rgba(255,255,255,0.1); white-space: nowrap;">Material
+              Color</td>
+            <td style="padding: 6px 8px; border-bottom: 1px solid rgba(255,255,255,0.1); word-break: break-word;">{{
+              selectedPart.material.color.getStyle() }}</td>
           </tr>
         </tbody>
       </table>
@@ -183,7 +165,7 @@ export default {
     const sceneContainer = ref(null);
     const clipSlider = ref(null);
     let scene, camera, renderer, model, controls, raycaster, mouse;
-    const hoveredPart = ref(null);  // 用于悬浮时显示的信息
+    // const hoveredPart = ref(null);  // 用于悬浮时显示的信息
     const selectedPart = ref(null);  // 用于点击时显示的固定信息
     const mouseX = ref(0);
     const mouseY = ref(0);
@@ -212,10 +194,12 @@ export default {
 
     const showWireframe = ref(false); // 是否显示线框
     const showGrid = ref(false); // 是否显示网格
-    let gridHelper = null; // 用于存储网格对象
+    // let gridHelper = null; // 用于存储网格对象
 
     const isLoading = ref(false); // 是否正在加载
     const loadingProgress = ref(0); // 加载进度
+
+    const partGrids = ref(new Map()) // 声明为响应式对象
 
 
     // 加载 GLTF/GLB 文件
@@ -482,17 +466,6 @@ export default {
         }
       }
 
-      if (intersects.length > 0) {
-        const object = intersects[0].object;
-        hoveredPart.value = {
-          name: object.name,
-          type: object.type,
-          dimensions: getDimensions(object),
-          material: object.material,
-        };
-      } else {
-        hoveredPart.value = null;
-      }
       // 更新剖切位置
       if (isClipping.value && currentDirection.value === "XYZ") {
         const point = intersects.length > 0 ? intersects[0].point : null;
@@ -644,42 +617,169 @@ export default {
     // 切换 Grid 显示
     const toggleGrid = () => {
       showGrid.value = !showGrid.value;
+
+      // 空间分区配置
+      const gridConfig = {
+        cellSize: 50,         // 分区单元尺寸
+        clusterThreshold: 3,  // 集群最小部件数
+        maxObjectSize: 20     // 单独生成网格的最大尺寸
+      };
+
+      // 空间分区存储
+      const spatialGrid = new Map();
+
+      // 清理旧网格
+      partGrids.value.forEach(grid => {
+        scene.remove(grid);
+        grid.dispose();
+      });
+      partGrids.value.clear();
+
       if (showGrid.value) {
-        // 创建并添加网格
-        gridHelper = new THREE.GridHelper(100, 10, 0x444444, 0x888888);
-        scene.add(gridHelper);
-      } else {
-        // 移除网格
-        if (gridHelper) {
-          scene.remove(gridHelper);
-          gridHelper = null;
-        }
+        // 第一阶段：空间分区
+        model.traverse(obj => {
+          if (obj.isMesh || obj.isGroup) {
+            const bbox = new THREE.Box3().setFromObject(obj);
+            const size = new THREE.Vector3();
+            bbox.getSize(size);
+
+            // 判断是否属于大型物体
+            if (size.length() > gridConfig.maxObjectSize) {
+              createIndividualGrid(obj, bbox);
+              return;
+            }
+
+            // 计算所属网格单元
+            const center = new THREE.Vector3();
+            bbox.getCenter(center);
+            const cellX = Math.floor(center.x / gridConfig.cellSize);
+            const cellZ = Math.floor(center.z / gridConfig.cellSize);
+            const cellKey = `${cellX},${cellZ}`;
+
+            if (!spatialGrid.has(cellKey)) {
+              spatialGrid.set(cellKey, {
+                objects: [],
+                bbox: new THREE.Box3()
+              });
+            }
+
+            const cell = spatialGrid.get(cellKey);
+            cell.objects.push(obj);
+            cell.bbox.union(bbox);
+          }
+        });
+
+        // 第二阶段：生成集群网格
+        spatialGrid.forEach((cell) => {
+          if (cell.objects.length >= gridConfig.clusterThreshold) {
+            createClusterGrid(cell.bbox);
+          } else {
+            cell.objects.forEach(obj => createIndividualGrid(obj));
+          }
+        });
       }
     };
 
+    // 创建独立部件网格
+    const createIndividualGrid = (obj, bbox = new THREE.Box3().setFromObject(obj)) => {
+      const size = bbox.getSize(new THREE.Vector3());
+      const grid = new THREE.GridHelper(
+        Math.max(size.x, size.z) * 1.2,
+        Math.ceil(Math.max(size.x, size.z) / 5),
+        0x666666,
+        0x444444
+      );
+
+      const center = new THREE.Vector3();
+      bbox.getCenter(center);
+      grid.position.set(center.x, bbox.min.y - 0.1, center.z);
+
+      partGrids.value.set(obj.uuid, grid);
+      scene.add(grid);
+    };
+
+    // 创建集群网格
+    const createClusterGrid = (clusterBbox) => {
+      const size = clusterBbox.getSize(new THREE.Vector3());
+      const grid = new THREE.GridHelper(
+        Math.max(size.x, size.z) * 1.1,
+        Math.ceil(Math.max(size.x, size.z) / 10),
+        0x888888,  // 集群网格使用高亮颜色
+        0x666666
+      );
+
+      const center = new THREE.Vector3();
+      clusterBbox.getCenter(center);
+      grid.position.set(center.x, clusterBbox.min.y - 0.2, center.z);
+
+      const gridId = THREE.MathUtils.generateUUID();
+      partGrids.value.set(gridId, grid);
+      scene.add(grid);
+    };
+
     // 切换爆炸图
+    // 在外部作用域中定义缓存和初始化状态
+    // const originalPositions = new Map();
+    const directionCache = new Map();
+    let isCacheInitialized = false;
+
     const toggleExplodedView = () => {
       isExploded.value = !isExploded.value;
 
-      const traverseAndExplode = (object) => {
-        if (object.isMesh || object.isGroup || object.isObject3D) {
-          const originalPosition = originalPositions.get(object);
-          if (isExploded.value) {
-            // 计算爆炸位移
-            const direction = new THREE.Vector3().subVectors(object.position, model.position).normalize();
-            const distance = 50;  // 爆炸距离
-            object.position.add(direction.multiplyScalar(distance));
-          } else {
-            // 恢复原始位置
-            object.position.copy(originalPosition);
+      // 预处理函数（仅在首次调用时执行）
+      const preprocess = (object) => {
+        if (object.isMesh || object.isGroup) {
+          // 存储初始位置（仅在未缓存时）
+          if (!originalPositions.has(object)) {
+            originalPositions.set(object, object.position.clone());
+          }
+
+          // 计算方向向量（仅在未缓存时）
+          if (!directionCache.has(object)) {
+            const bbox = new THREE.Box3().setFromObject(object);
+            const center = new THREE.Vector3();
+            bbox.getCenter(center);
+            const direction = new THREE.Vector3()
+              .subVectors(center, model.position)
+              .normalize();
+            directionCache.set(object, direction);
           }
         }
-        if (object.children && object.children.length > 0) {
-          object.children.forEach(child => traverseAndExplode(child));
-        }
+        object.children?.forEach(preprocess);
       };
 
-      traverseAndExplode(model);
+      // 仅在首次触发时预处理整个模型
+      if (!isCacheInitialized) {
+        preprocess(model);
+        isCacheInitialized = true;
+      }
+
+      // 执行爆炸/恢复操作
+      const traverse = (object) => {
+        if (object.isMesh || object.isGroup) {
+          const origin = originalPositions.get(object);
+          const direction = directionCache.get(object);
+
+          if (!origin || !direction) {
+            console.warn('Missing cache for:', object);
+            return;
+          }
+
+          // 根据状态切换位置
+          if (isExploded.value) {
+            object.position.copy(origin)
+              .add(direction.clone().multiplyScalar(50));
+          } else {
+            object.position.copy(origin);
+          }
+
+          // 更新矩阵确保渲染正确
+          object.updateMatrixWorld(true);
+        }
+        object.children?.forEach(traverse);
+      };
+
+      traverse(model);
     };
 
     // 切换剖切功能
@@ -1016,7 +1116,6 @@ export default {
     return {
       sceneContainer,
       isMeasuring,
-      hoveredPart,
       selectedPart,
       mouseX,
       mouseY,
