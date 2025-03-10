@@ -409,6 +409,36 @@ export default {
         }
       });
 
+      // 在 initScene() 函数中添加
+      const createGradientBackground = () => {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+
+        // 增大画布尺寸（避免拉伸模糊）
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        // 调整颜色梯度（增强蓝色可见性）
+        const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+        gradient.addColorStop(0, '#B0E0E6'); // PowderBlue（更明显的蓝色）
+        gradient.addColorStop(0.7, '#F0F8FF'); // AliceBlue
+        gradient.addColorStop(1, '#FFFFFF');
+
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        return new THREE.CanvasTexture(canvas);
+      };
+
+      // 设置场景背景
+      scene.background = createGradientBackground();
+
+      // 响应窗口尺寸变化
+      window.addEventListener('resize', () => {
+        scene.background = createGradientBackground();
+        scene.background.needsUpdate = true;
+      });
+
 
       animate();
     };
