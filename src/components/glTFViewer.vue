@@ -35,6 +35,10 @@
       <button @click="measure" :style="buttonStyle">
         {{ isMeasuring ? '关闭测量' : '测量' }}
       </button>
+
+      <button :style="buttonStyle" @click="goToHome">
+        重新上传
+      </button>
     </div>
 
     <!-- 剖切滑块 -->
@@ -153,16 +157,15 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
 import { CSS2DObject, CSS2DRenderer } from "three/examples/jsm/renderers/CSS2DRenderer";
 import { DragControls } from "three/examples/jsm/controls/DragControls";
 import { LoadingManager } from "three";
+import { useFileStore } from '../stores/fileStore'
+import { useRouter } from 'vue-router'
+
+
 
 export default {
   name: "glTFViewer",
-  props: {
-    files: {
-      type: Array,
-      default: () => [],
-    },
-  },
-  setup(props) {
+
+  setup() {
     const sceneContainer = ref(null);
     const clipSlider = ref(null);
     let scene, camera, renderer, model, controls, raycaster, mouse;
@@ -208,6 +211,17 @@ export default {
       Y: { min: -100, max: 100 },
       Z: { min: -100, max: 100 }
     });
+    const fileStore = useFileStore()
+
+    const router = useRouter()
+
+    const goToHome = () => {
+      // 在跳转前执行必要的清理
+      router.push('/')
+    }
+
+    
+
 
 
     // 加载 GLTF/GLB 文件
@@ -906,6 +920,10 @@ export default {
       }
     };
 
+    watch(() => fileStore.files, (newFiles) => {
+      if (newFiles.length) loadModel(newFiles)
+    })
+
     watch(currentDirection, (newDir) => {
       if (newDir !== 'Free') {
         // 设置初始位置在模型中心
@@ -917,13 +935,6 @@ export default {
     watch(clipPosition, (newValue) => {
       if (clipPlane) {
         clipPlane.constant = newValue;
-      }
-    });
-
-    // 监听 files 的变化
-    watch(() => props.files, (newFiles) => {
-      if (newFiles.length) {
-        loadModel(newFiles);
       }
     });
 
@@ -963,6 +974,7 @@ export default {
 
     onMounted(() => {
       initScene();
+      if (fileStore.files.length) loadModel(fileStore.files)
       window.addEventListener("keydown", handleKeyDown);
       window.addEventListener("mousemove", handleMouseMove);
       window.addEventListener("click", handleClick);  // 添加点击事件监听
@@ -1202,6 +1214,7 @@ export default {
       loadingStyle,
       currentDirection,
       axisRanges,
+      goToHome,
     };
   },
 };
