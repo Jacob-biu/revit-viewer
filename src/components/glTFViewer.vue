@@ -961,9 +961,16 @@ export default {
       }
     };
 
-    // 监听键盘事件
     onMounted(() => {
+      initScene();
       window.addEventListener("keydown", handleKeyDown);
+      window.addEventListener("mousemove", handleMouseMove);
+      window.addEventListener("click", handleClick);  // 添加点击事件监听
+      window.addEventListener("mousedown", (event) => {
+        if (event.button === 2) { // 2 表示鼠标右键
+          handleClick(event); // 处理右键点击
+        }
+      });
     });
 
     // 组件卸载时移除事件监听
@@ -972,17 +979,6 @@ export default {
       window.removeEventListener("mousedown", (event) => {
         if (event.button === 2) {
           handleClick(event);
-        }
-      });
-    });
-
-    onMounted(() => {
-      initScene();
-      window.addEventListener("mousemove", handleMouseMove);
-      window.addEventListener("click", handleClick);  // 添加点击事件监听
-      window.addEventListener("mousedown", (event) => {
-        if (event.button === 2) { // 2 表示鼠标右键
-          handleClick(event); // 处理右键点击
         }
       });
     });
