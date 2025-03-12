@@ -47,6 +47,11 @@
       <input type="range" v-if="currentDirection !== 'Free'" v-model="clipPosition"
         :min="axisRanges[currentDirection].min" :max="axisRanges[currentDirection].max" step="0.1"
         style="width: 100%; margin-bottom:20px;" />
+      <div style="color: white; font-size: 12px; margin-bottom:10px;">
+        当前位置: {{ clipPosition }}
+        (范围: {{ axisRanges[currentDirection].min.toFixed(1) }} -
+        {{ axisRanges[currentDirection].max.toFixed(1) }})
+      </div>
       <!-- 切换剖切方向按钮 -->
       <button @click="switchClippingDirection" :style="buttonStyle">
         切换剖切方向 ({{ currentDirection }})
@@ -294,17 +299,22 @@ export default {
       model = modelScene;
       scene.add(model);
 
-      // 计算模型的包围盒，并调整模型位置使其居中
-      const box = new THREE.Box3().setFromObject(model);
-      // 更新轴范围（世界坐标系）
-      axisRanges.value = {
-        X: { min: box.min.x, max: box.max.x },
-        Y: { min: box.min.y, max: box.max.y },
-        Z: { min: box.min.z, max: box.max.z }
-      };
+      // 计算初始包围盒并居中模型
+      const initialBox = new THREE.Box3().setFromObject(model);
       const center = new THREE.Vector3();
-      box.getCenter(center);
-      model.position.sub(center); // 将模型移动到场景中心
+      initialBox.getCenter(center);
+      model.position.sub(center); // 移动模型到场景中心
+
+      // 重要：更新模型的世界矩阵后重新计算包围盒
+      model.updateMatrixWorld(true);
+      const worldBox = new THREE.Box3().setFromObject(model);
+
+      // 更新轴范围（使用世界坐标下的包围盒）
+      axisRanges.value = {
+        X: { min: worldBox.min.x, max: worldBox.max.x },
+        Y: { min: worldBox.min.y, max: worldBox.max.y },
+        Z: { min: worldBox.min.z, max: worldBox.max.z }
+      };
 
       // 递归遍历所有子对象，并存储它们的原始位置
       const traverseAndStorePositions = (object) => {
@@ -934,47 +944,6 @@ export default {
       div.style.pointerEvents = 'none';
       return div;
     };
-
-    // 创建独立部件网格
-    // const createIndividualGrid = (obj, bbox = new THREE.Box3().setFromObject(obj)) => {
-    //   const size = bbox.getSize(new THREE.Vector3());
-    //   const grid = new THREE.GridHelper(
-    //     Math.max(size.x, size.z) * 1.2,
-    //     Math.ceil(Math.max(size.x, size.z) / 5),
-    //     0x666666,
-    //     0x444444
-    //   );
-    //   grid.isGridHelper = true; // 添加标识 <<< 新增这行
-
-
-    //   const center = new THREE.Vector3();
-    //   bbox.getCenter(center);
-    //   grid.position.set(center.x, bbox.min.y - 0.1, center.z);
-
-    //   partGrids.value.set(obj.uuid, grid);
-    //   scene.add(grid);
-    // };
-
-    // // 创建集群网格
-    // const createClusterGrid = (clusterBbox) => {
-    //   const size = clusterBbox.getSize(new THREE.Vector3());
-    //   const grid = new THREE.GridHelper(
-    //     Math.max(size.x, size.z) * 1.1,
-    //     Math.ceil(Math.max(size.x, size.z) / 10),
-    //     0x888888,  // 集群网格使用高亮颜色
-    //     0x666666
-    //   );
-    //   grid.isGridHelper = true; // 添加标识 <<< 新增这行
-
-
-    //   const center = new THREE.Vector3();
-    //   clusterBbox.getCenter(center);
-    //   grid.position.set(center.x, clusterBbox.min.y - 0.2, center.z);
-
-    //   const gridId = THREE.MathUtils.generateUUID();
-    //   partGrids.value.set(gridId, grid);
-    //   scene.add(grid);
-    // };
 
     // 切换爆炸图
     // 在外部作用域中定义缓存和初始化状态
