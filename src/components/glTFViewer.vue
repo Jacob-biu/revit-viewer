@@ -194,7 +194,7 @@ export default {
 
     const ambientLight = ref(null); // 用于存储环境光
     const directionalLight = ref(null); // 用于存储平行光
-    const brightness = ref(1.5); // 亮度值，范围 0 到 2
+    const brightness = ref(1); // 亮度值，范围 0 到 2
 
     const showWireframe = ref(false); // 是否显示线框
     const showGrid = ref(false); // 是否显示网格
@@ -364,11 +364,11 @@ export default {
       });
 
       // 初始化环境光
-      ambientLight.value = new THREE.AmbientLight(0x404040, brightness.value * 10);
+      ambientLight.value = new THREE.AmbientLight(0x404040, brightness.value * 20);
       scene.add(ambientLight.value);
 
       // 初始化平行光
-      directionalLight.value = new THREE.DirectionalLight(0xffffff, brightness.value * 1.5);
+      directionalLight.value = new THREE.DirectionalLight(0xffffff, brightness.value * 9);
       directionalLight.value.position.set(50, 50, 50);
       scene.add(directionalLight.value);
 
@@ -667,111 +667,314 @@ export default {
     const toggleGrid = () => {
       showGrid.value = !showGrid.value;
 
-      scene.children.slice().forEach(child => { // 使用副本遍历
-        if (child.isGridHelper) { // 添加网格标识
+      // 清理旧网格、标记和标签
+      scene.children.slice().forEach(child => {
+        if (child.isGridHelper || child.isMarker || child.isLabel || child.isAxisLine || child.isBoundingCube) {
           scene.remove(child);
-          // 移除材质和几何体（安全操作）
-          if (child.material) child.material.dispose();
-          if (child.geometry) child.geometry.dispose();
+          child.material?.dispose();
+          child.geometry?.dispose();
+          if (child.element) child.element.remove();
         }
       });
       partGrids.value.clear();
 
-      // 空间分区配置
-      const gridConfig = {
-        cellSize: 50,         // 分区单元尺寸
-        clusterThreshold: 3,  // 集群最小部件数
-        maxObjectSize: 20     // 单独生成网格的最大尺寸
-      };
+      if (showGrid.value && model) {
+        // 获取模型包围盒
+        const box = new THREE.Box3().setFromObject(model);
+        const modelMin = box.min.clone();
+        const modelMax = box.max.clone();
+        const size = box.getSize(new THREE.Vector3());
 
-      // 空间分区存储
-      const spatialGrid = new Map();
+        // 新增：生成包围立方体的8个顶点
+        const vertices = [
+          new THREE.Vector3(modelMin.x, modelMin.y, modelMin.z), // 0
+          new THREE.Vector3(modelMax.x, modelMin.y, modelMin.z), // 1
+          new THREE.Vector3(modelMax.x, modelMax.y, modelMin.z), // 2
+          new THREE.Vector3(modelMin.x, modelMax.y, modelMin.z), // 3
+          new THREE.Vector3(modelMin.x, modelMin.y, modelMax.z), // 4
+          new THREE.Vector3(modelMax.x, modelMin.y, modelMax.z), // 5
+          new THREE.Vector3(modelMax.x, modelMax.y, modelMax.z), // 6
+          new THREE.Vector3(modelMin.x, modelMax.y, modelMax.z)  // 7
+        ];
 
-      if (showGrid.value) {
-        // 第一阶段：空间分区
-        model.traverse(obj => {
-          if (obj.isMesh || obj.isGroup) {
-            const bbox = new THREE.Box3().setFromObject(obj);
-            const size = new THREE.Vector3();
-            bbox.getSize(size);
+        // 新增：定义立方体12条边
+        const edges = [
+          [0, 1], [1, 2], [2, 3], [3, 0], // 底面
+          [4, 5], [5, 6], [6, 7], [7, 4], // 顶面
+          [0, 4], [1, 5], [2, 6], [3, 7]  // 垂直边
+        ];
 
-            // 判断是否属于大型物体
-            if (size.length() > gridConfig.maxObjectSize) {
-              createIndividualGrid(obj, bbox);
-              return;
-            }
-
-            // 计算所属网格单元
-            const center = new THREE.Vector3();
-            bbox.getCenter(center);
-            const cellX = Math.floor(center.x / gridConfig.cellSize);
-            const cellZ = Math.floor(center.z / gridConfig.cellSize);
-            const cellKey = `${cellX},${cellZ}`;
-
-            if (!spatialGrid.has(cellKey)) {
-              spatialGrid.set(cellKey, {
-                objects: [],
-                bbox: new THREE.Box3()
-              });
-            }
-
-            const cell = spatialGrid.get(cellKey);
-            cell.objects.push(obj);
-            cell.bbox.union(bbox);
-          }
+        // 新增：创建虚线材质
+        const dashMaterial = new THREE.LineDashedMaterial({
+          color: 0x00FFFF,    // 青色虚线
+          dashSize: 1,       // 虚线片段长度
+          gapSize: 0.5,      // 间隔长度
+          linewidth: 1
         });
 
-        // 第二阶段：生成集群网格
-        spatialGrid.forEach((cell) => {
-          if (cell.objects.length >= gridConfig.clusterThreshold) {
-            createClusterGrid(cell.bbox);
-          } else {
-            cell.objects.forEach(obj => createIndividualGrid(obj));
-          }
+        // 生成所有虚线边
+        edges.forEach(edge => {
+          const points = [
+            vertices[edge[0]].clone(),
+            vertices[edge[1]].clone()
+          ];
+
+          const geometry = new THREE.BufferGeometry().setFromPoints(points);
+          const line = new THREE.Line(geometry, dashMaterial);
+          line.computeLineDistances(); // 关键：计算虚线间隔
+          line.isBoundingCube = true;  // 添加标识
+          scene.add(line);
         });
+
+        // 创建坐标系标记（核心逻辑）
+        const createAxisMarkers = (axis) => {
+          const xValid = Math.ceil(size.x / 25) * 25;
+          const zValid = Math.ceil(size.z / 25) * 25;
+          const yValid = Math.ceil(size.y / 25) * 25;
+          // 计算有效网格长度
+          const validLength = Math.max(xValid, yValid, zValid); // 确保是25的整数倍
+
+          // 修正后的末端位置计算
+          const axisMaxPoints = {
+            x: new THREE.Vector3(modelMax.x, modelMin.y, modelMin.z),
+            y: new THREE.Vector3(modelMin.x, modelMax.y, modelMin.z),
+            z: new THREE.Vector3(modelMin.x, modelMin.y, modelMax.z)
+          };
+
+          // 创建对应颜色的末端标记
+          const maxMarker = new THREE.Mesh(
+            new THREE.SphereGeometry(1.2),
+            new THREE.MeshBasicMaterial({
+              color: {
+                x: 0xFF0000, // 红色X轴
+                y: 0x00FF00, // 绿色Y轴
+                z: 0x0000FF  // 蓝色Z轴
+              }[axis]
+            })
+          );
+          maxMarker.position.copy(axisMaxPoints[axis]);
+          maxMarker.isMarker = true;
+          scene.add(maxMarker);
+
+          // 创建刻度标记
+          // const axisLength = size[axis];
+          const step = 25; // 每25单位一个刻度
+          // const totalSteps = Math.ceil(axisLength / step);
+          const totalSteps = validLength / 25; // 保证是整数
+
+          for (let i = 0; i <= totalSteps; i++) {
+            const pos = modelMin[axis] + i * step;
+            const isMajor = i % 2 === 0; // 每50单位一个粗标记
+
+            // 创建标记点
+            const marker = new THREE.Mesh(
+              new THREE.SphereGeometry(isMajor ? 0.6 : 0.4),
+              new THREE.MeshBasicMaterial({
+                color: isMajor ? 0x000000 : 0xFFFF00
+              })
+            );
+
+            // 设置标记位置（根据当前轴）
+            const position = modelMin.clone();
+            position[axis] = pos;
+
+            // 偏移到三个轴的交线位置
+            if (axis === 'x') {
+              position.y = modelMin.y;
+              position.z = modelMin.z;
+            } else if (axis === 'y') {
+              position.x = modelMin.x;
+              position.z = modelMin.z;
+            } else {
+              position.x = modelMin.x;
+              position.y = modelMin.y;
+            }
+
+            marker.position.copy(position);
+            marker.isMarker = true;
+            scene.add(marker);
+
+            // 创建文字标签（50单位倍数时显示）
+            if (i % 2 === 0) {
+              const label = new CSS2DObject(createLabelElement(i * step));
+              label.position.copy(position);
+              label.isLabel = true;
+              scene.add(label);
+            }
+          }
+        };
+
+        // 创建三个轴的标记系统
+        createAxisMarkers('x');
+        createAxisMarkers('y');
+        createAxisMarkers('z');
+
+        // 创建基础灰色网格（保持原有参数）
+        // const edgeLength = Math.max(size.x, size.y, size.z) * 1.2;
+        // const divisions = Math.ceil(edgeLength / 25);
+
+        // XZ平面网格（底面）灰色
+        const xValid = Math.ceil(size.x / 25) * 25;
+        const zValid = Math.ceil(size.z / 25) * 25;
+        const yValid = Math.ceil(size.y / 25) * 25;
+
+        const xzEdgeLength = Math.max(xValid, yValid, zValid);
+        const xzGrid = new THREE.GridHelper(xzEdgeLength, xzEdgeLength / 25, 0x666666, 0x444444); xzGrid.isGridHelper = true; // 新增这行
+        xzGrid.position.set(
+          modelMin.x + xzEdgeLength / 2,
+          modelMin.y - 0.1,
+          modelMin.z + xzEdgeLength / 2
+        );
+        scene.add(xzGrid);
+
+        // XY平面网格（后墙面）灰色
+        const xyEdgeLength = Math.max(xValid, yValid, zValid);
+        const xyGrid = new THREE.GridHelper(xyEdgeLength, xyEdgeLength / 25, 0x666666, 0x444444);
+        xyGrid.rotation.x = Math.PI / 2;
+        xyGrid.isGridHelper = true; // 新增这行
+        xyGrid.position.set(
+          modelMin.x + xyEdgeLength / 2,
+          modelMin.y + xyEdgeLength / 2,
+          modelMin.z - 0.1
+        );
+        scene.add(xyGrid);
+
+        // YZ平面网格（左侧墙）灰色
+        const yzEdgeLength = Math.max(xValid, yValid, zValid);
+        const yzGrid = new THREE.GridHelper(yzEdgeLength, yzEdgeLength / 25, 0x666666, 0x444444);
+        yzGrid.isGridHelper = true; // 新增这行
+        yzGrid.rotation.z = Math.PI / 2;
+        yzGrid.position.set(
+          modelMin.x - 0.1,
+          modelMin.y + yzEdgeLength / 2,
+          modelMin.z + yzEdgeLength / 2
+        );
+        scene.add(yzGrid);
+
+        // 新增：创建彩色坐标轴线------------------------------------------
+        const createAxisLine = (start, end, color) => {
+          const points = [
+            new THREE.Vector3().copy(start),
+            new THREE.Vector3().copy(end)
+          ];
+          const geometry = new THREE.BufferGeometry().setFromPoints(points);
+          const material = new THREE.LineBasicMaterial({
+            color,
+            linewidth: 3
+          });
+          const line = new THREE.Line(geometry, material);
+          line.isAxisLine = true; // 添加标识
+
+          // 创建箭头（使用圆锥体）
+          const arrowHeight = 5;  // 箭头高度
+          const arrowRadius = 2; // 箭头底部半径
+          const arrowGeometry = new THREE.ConeGeometry(arrowRadius, arrowHeight, 8);
+          const arrowMaterial = new THREE.MeshBasicMaterial({ color });
+          const arrow = new THREE.Mesh(arrowGeometry, arrowMaterial);
+
+          // 计算箭头方向和位置
+          const direction = new THREE.Vector3().subVectors(end, start).normalize();
+          const arrowPosition = end.clone().addScaledVector(direction, -arrowHeight / 2);
+
+          // 设置箭头旋转（四元数方式更精确）
+          const quaternion = new THREE.Quaternion();
+          quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction);
+          arrow.applyQuaternion(quaternion);
+
+          arrow.position.copy(arrowPosition);
+
+          // 将箭头作为轴线的子对象
+          line.add(arrow);
+          return line;
+        };
+
+        // X轴（红色）：沿XZ平面中心线
+        scene.add(createAxisLine(
+          new THREE.Vector3(modelMin.x, modelMin.y, modelMin.z),
+          new THREE.Vector3(xzEdgeLength, modelMin.y, modelMin.z),
+          0xFF0000
+        ));
+
+        // Y轴（绿色）：沿XY平面中心线
+        scene.add(createAxisLine(
+          new THREE.Vector3(modelMin.x, modelMin.y, modelMin.z),
+          new THREE.Vector3(modelMin.x, xzEdgeLength, modelMin.z),
+          0x00FF00
+        ));
+
+        // Z轴（蓝色）：沿YZ平面中心线
+        scene.add(createAxisLine(
+          new THREE.Vector3(modelMin.x, modelMin.y, modelMin.z),
+          new THREE.Vector3(modelMin.x, modelMin.y, xzEdgeLength),
+          0x0000FF
+        ));
+
+        // 新增：交汇点标记（直径2单位）
+        const originMarker = new THREE.Mesh(
+          new THREE.SphereGeometry(1, 16),
+          new THREE.MeshBasicMaterial({ color: 0x000000 })
+        );
+        originMarker.position.set(modelMin.x, modelMin.y, modelMin.z);
+        scene.add(originMarker);
+
+        // 存储对象
+        partGrids.value.set('xz', xzGrid);
+        partGrids.value.set('xy', xyGrid);
+        partGrids.value.set('yz', yzGrid);
       }
     };
 
+    // 创建标签DOM元素的辅助函数
+    const createLabelElement = (text) => {
+      const div = document.createElement('div');
+      div.className = 'axis-label';
+      div.textContent = text;
+      div.style.color = 'white';
+      div.style.fontSize = '12px';
+      div.style.pointerEvents = 'none';
+      return div;
+    };
+
     // 创建独立部件网格
-    const createIndividualGrid = (obj, bbox = new THREE.Box3().setFromObject(obj)) => {
-      const size = bbox.getSize(new THREE.Vector3());
-      const grid = new THREE.GridHelper(
-        Math.max(size.x, size.z) * 1.2,
-        Math.ceil(Math.max(size.x, size.z) / 5),
-        0x666666,
-        0x444444
-      );
-      grid.isGridHelper = true; // 添加标识 <<< 新增这行
+    // const createIndividualGrid = (obj, bbox = new THREE.Box3().setFromObject(obj)) => {
+    //   const size = bbox.getSize(new THREE.Vector3());
+    //   const grid = new THREE.GridHelper(
+    //     Math.max(size.x, size.z) * 1.2,
+    //     Math.ceil(Math.max(size.x, size.z) / 5),
+    //     0x666666,
+    //     0x444444
+    //   );
+    //   grid.isGridHelper = true; // 添加标识 <<< 新增这行
 
 
-      const center = new THREE.Vector3();
-      bbox.getCenter(center);
-      grid.position.set(center.x, bbox.min.y - 0.1, center.z);
+    //   const center = new THREE.Vector3();
+    //   bbox.getCenter(center);
+    //   grid.position.set(center.x, bbox.min.y - 0.1, center.z);
 
-      partGrids.value.set(obj.uuid, grid);
-      scene.add(grid);
-    };
+    //   partGrids.value.set(obj.uuid, grid);
+    //   scene.add(grid);
+    // };
 
-    // 创建集群网格
-    const createClusterGrid = (clusterBbox) => {
-      const size = clusterBbox.getSize(new THREE.Vector3());
-      const grid = new THREE.GridHelper(
-        Math.max(size.x, size.z) * 1.1,
-        Math.ceil(Math.max(size.x, size.z) / 10),
-        0x888888,  // 集群网格使用高亮颜色
-        0x666666
-      );
-      grid.isGridHelper = true; // 添加标识 <<< 新增这行
+    // // 创建集群网格
+    // const createClusterGrid = (clusterBbox) => {
+    //   const size = clusterBbox.getSize(new THREE.Vector3());
+    //   const grid = new THREE.GridHelper(
+    //     Math.max(size.x, size.z) * 1.1,
+    //     Math.ceil(Math.max(size.x, size.z) / 10),
+    //     0x888888,  // 集群网格使用高亮颜色
+    //     0x666666
+    //   );
+    //   grid.isGridHelper = true; // 添加标识 <<< 新增这行
 
 
-      const center = new THREE.Vector3();
-      clusterBbox.getCenter(center);
-      grid.position.set(center.x, clusterBbox.min.y - 0.2, center.z);
+    //   const center = new THREE.Vector3();
+    //   clusterBbox.getCenter(center);
+    //   grid.position.set(center.x, clusterBbox.min.y - 0.2, center.z);
 
-      const gridId = THREE.MathUtils.generateUUID();
-      partGrids.value.set(gridId, grid);
-      scene.add(grid);
-    };
+    //   const gridId = THREE.MathUtils.generateUUID();
+    //   partGrids.value.set(gridId, grid);
+    //   scene.add(grid);
+    // };
 
     // 切换爆炸图
     // 在外部作用域中定义缓存和初始化状态
@@ -949,10 +1152,10 @@ export default {
     // 监听亮度变化
     watch(brightness, (newValue) => {
       if (ambientLight.value) {
-        ambientLight.value.intensity = newValue * 10; // 调整环境光强度
+        ambientLight.value.intensity = newValue * 20; // 调整环境光强度
       }
       if (directionalLight.value) {
-        directionalLight.value.intensity = newValue * 1.5; // 调整平行光强度
+        directionalLight.value.intensity = newValue * 9; // 调整平行光强度
       }
     });
 
