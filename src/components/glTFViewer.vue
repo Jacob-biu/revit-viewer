@@ -156,7 +156,7 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
 import { CSS2DObject, CSS2DRenderer } from "three/examples/jsm/renderers/CSS2DRenderer";
 import { DragControls } from "three/examples/jsm/controls/DragControls";
-import { LoadingManager } from "three";
+import { LoadingManager, SRGBColorSpace } from "three";
 import { useFileStore } from '../stores/fileStore'
 import { useRouter } from 'vue-router'
 
@@ -220,7 +220,7 @@ export default {
       router.push('/')
     }
 
-    
+
 
 
 
@@ -340,8 +340,15 @@ export default {
       scene.background = new THREE.Color(0x000000);
 
       camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-      renderer = new THREE.WebGLRenderer();
+      renderer = new THREE.WebGLRenderer({
+        antialias: true, // 开启硬件抗锯齿
+        powerPreference: "high-performance" // 启用高性能模式
+      });
+      // 设置像素比（重要！解决移动端和高分屏锯齿问题）
+      renderer.setPixelRatio(window.devicePixelRatio);
       renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.physicallyCorrectLights = true;
+      renderer.outputColorSpace = SRGBColorSpace;
       renderer.domElement.style.position = 'absolute'; // 确保渲染器定位正确
       renderer.domElement.style.top = '0';
       renderer.domElement.style.left = '0';
@@ -350,6 +357,7 @@ export default {
       window.addEventListener('resize', () => {
         const width = window.innerWidth;
         const height = window.innerHeight;
+        renderer.setPixelRatio(window.devicePixelRatio);
         renderer.setSize(width, height);
         camera.aspect = width / height;
         camera.updateProjectionMatrix();
