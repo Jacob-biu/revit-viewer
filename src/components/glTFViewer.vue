@@ -6,6 +6,27 @@
       <div class="loading-progress">{{ loadingProgress }}%</div>
     </div>
 
+    <div v-if="scalePercentage !== 100" @click="resetView" style="
+      position: fixed;
+      left: 20px;
+      bottom: 20px;
+      background: rgba(0, 0, 0, 0.85);
+      color: #fff;
+      padding: 8px 16px;
+      border-radius: 5px;
+      font-size: 14px;
+      font-family: system-ui, sans-serif;
+      line-height: 1;
+      white-space: nowrap;
+      z-index: 1000;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+      backdrop-filter: blur(3px);
+      height:auto;
+      width:auto;" @mouseenter="scaleHover = true" @mouseleave="scaleHover = false"
+      :style="{ transform: scaleHover ? 'scale(1.05)' : 'none' }">
+      当前缩放：{{ scalePercentage }}%
+    </div>
+
     <!-- 悬浮侧边框 -->
     <div :style="sideBarStyle">
       <!-- 亮度调节滑动条 -->
@@ -15,6 +36,10 @@
         <input type="range" id="brightness" v-model="brightness" min="0.1" max="3" step="0.1"
           :style="brightnessSliderStyle" />
       </div>
+
+      <button @click="toggleAutoShow" :style="buttonStyle">
+        {{ isAutoShowing ? '停止展示' : '自动展示' }}
+      </button>
 
       <!-- Grid 切换按钮 -->
       <button @click="toggleGrid" :style="buttonStyle">
@@ -95,14 +120,14 @@
               padding: 6px 8px;
               border-bottom: 1px solid rgba(255,255,255,0.2);
               white-space: nowrap;  
-              font-size: 14px;
+              font-size: 15px;
             ">Property</th>
             <th style="
               text-align: left;
               padding: 6px 8px;
               border-bottom: 1px solid rgba(255,255,255,0.2);
               min-width: 80px;  
-              font-size: 14px;
+              font-size: 15px;
             ">Value</th>
           </tr>
         </thead>
@@ -112,14 +137,17 @@
               padding: 6px 8px;
               border-bottom: 1px solid rgba(255,255,255,0.1);
               white-space: nowrap;  
-              font-size: 13px;
+              font-size: 15px;
+              font-family: 'Segoe UI', Arial, 'Microsoft YaHei', sans-serif;
+
             ">Name</td>
             <td style="
               padding: 6px 8px;
               border-bottom: 1px solid rgba(255,255,255,0.1);
               word-break: break-word;  
-              max-width: 200px;  
-              font-size: 13px;
+              max-width: 250px;  
+              font-size: 15px;
+              font-family: 'Segoe UI', Arial, 'Microsoft YaHei', sans-serif;
             ">{{ selectedPart.name }}</td>
           </tr>
           <tr>
@@ -148,8 +176,21 @@
           <tr v-if="selectedPart.material">
             <td style="padding: 6px 8px; border-bottom: 1px solid rgba(255,255,255,0.1); white-space: nowrap;">Material
               Color</td>
-            <td style="padding: 6px 8px; border-bottom: 1px solid rgba(255,255,255,0.1); word-break: break-word;">{{
-              selectedPart.material.color.getStyle() }}</td>
+            <td
+              style="padding: 6px 8px; border-bottom: 1px solid rgba(255,255,255,0.1); white-space: nowrap; text-align: center; display: flex; align-items: center; justify-content: center;">
+              <!-- 颜色块 -->
+              <div :style="{
+                backgroundColor: selectedPart.material.color.getStyle(),
+                width: '24px',
+                height: '18px',
+                borderRadius: '3px',
+                border: '1px solid rgba(255,255,255,0.3)',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+              }"></div>
+              <span>
+                {{ selectedPart.material.color.getStyle() }}
+              </span>
+            </td>
           </tr>
         </tbody>
       </table>
@@ -158,7 +199,7 @@
 </template>
 
 <script>
-import { ref, watch, onMounted, onUnmounted } from "vue";
+import { ref, watch, onMounted, onUnmounted, nextTick } from "vue";
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
@@ -236,6 +277,20 @@ export default {
       router.push('/')
     }
 
+    const isAutoShowing = ref(false);
+    const originalScale = ref(new THREE.Vector3(1, 1, 1));
+    const originalPosition = ref(new THREE.Vector3());
+    const originalRotation = ref(new THREE.Euler());
+
+    const scalePercentage = ref(100);
+    let initialCameraDistance = 0;
+
+    const scaleHover = ref(false);
+    let initialCameraPosition = new THREE.Vector3();
+    let initialControlsTarget = new THREE.Vector3();
+
+
+
     // 加载 GLTF/GLB 文件
     const loadModel = async (files) => {
       isLoading.value = true; // 开始加载
@@ -310,7 +365,8 @@ export default {
       const initialBox = new THREE.Box3().setFromObject(model);
       const center = new THREE.Vector3();
       initialBox.getCenter(center);
-      model.position.sub(center); // 移动模型到场景中心
+      const offset = new THREE.Vector3().subVectors(model.position, center);
+      model.position.copy(offset);
 
       // 重要：更新模型的世界矩阵后重新计算包围盒
       model.updateMatrixWorld(true);
@@ -335,8 +391,31 @@ export default {
         }
       };
 
+      initialCameraDistance = controls.getDistance();
+      initialCameraPosition.copy(camera.position);
+      initialControlsTarget.copy(controls.target);
+
       traverseAndStorePositions(model);
     };
+
+    const resetView = () => {
+      // 重置相机位置
+      camera.position.copy(initialCameraPosition);
+      // 重置控制器目标
+      controls.target.copy(initialControlsTarget);
+      // 重置缩放参数
+      controls.maxDistance = 5000;
+      controls.minDistance = 1;
+      // 立即更新控制器
+      controls.update();
+      // 重置比例显示
+      scalePercentage.value = 100;
+
+      // 触发重计算初始距离
+      nextTick(() => {
+        initialCameraDistance = controls.getDistance();
+      });
+    }
 
 
     // 获取部件的尺寸
@@ -356,7 +435,12 @@ export default {
       scene = new THREE.Scene();
       scene.background = new THREE.Color(0x000000);
 
-      camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+      camera = new THREE.PerspectiveCamera(
+        75,
+        window.innerWidth / window.innerHeight,
+        0.01,   // 将 near 值从 0.1 改为 0.01
+        10000    // 将 far 值从 1000 改为 10000
+      );
       renderer = new THREE.WebGLRenderer({
         antialias: true, // 开启硬件抗锯齿
         powerPreference: "high-performance" // 启用高性能模式
@@ -419,8 +503,8 @@ export default {
       controls.enableDamping = true;
       controls.dampingFactor = 0.25;
       controls.screenSpacePanning = false;
-      controls.minDistance = 10;
-      controls.maxDistance = 1000;
+      controls.minDistance = 1;     // 允许更近距离观察
+      controls.maxDistance = 5000;  // 允许更远距离
       controls.enableRotate = true;
       controls.rotateSpeed = 1.0;
       controls.minPolarAngle = -Infinity;
@@ -506,6 +590,17 @@ export default {
     // 动画循环
     const animate = () => {
       requestAnimationFrame(animate);
+
+      // 新增：计算缩放比例
+      if (initialCameraDistance > 0) {
+        const currentDistance = controls.getDistance();
+        scalePercentage.value = Math.round((initialCameraDistance / currentDistance) * 100);
+      }
+
+      if (isAutoShowing.value) {
+        // 自动旋转（Y轴）
+        model.rotation.y -= 0.005;
+      }
       controls.update();
       renderer.render(scene, camera);
 
@@ -687,6 +782,39 @@ export default {
           previousClickedObject = null;
         }
       }
+    };
+
+    // 自动展示切换方法
+    const toggleAutoShow = () => {
+      isAutoShowing.value = !isAutoShowing.value;
+
+      if (isAutoShowing.value) {
+        // 开始展示时保存原始状态
+        originalScale.value.copy(model.scale);
+        originalPosition.value.copy(model.position);
+        originalRotation.value.copy(model.rotation);
+
+        // 缩小模型到80%
+        model.scale.set(0.8, 0.8, 0.8);
+
+        // 居中模型
+        const box = new THREE.Box3().setFromObject(model);
+        const center = new THREE.Vector3();
+        box.getCenter(center);
+        model.position.sub(center);
+
+        camera.position.set(0, 0, model.scale.x * 200); // 根据缩放比例动态调整相机距离
+        controls.target.copy(center); // 确保控制器目标点正确
+        controls.update();
+      } else {
+        // 停止时恢复原始状态
+        model.scale.copy(originalScale.value);
+        model.position.copy(originalPosition.value);
+        model.rotation.copy(originalRotation.value);
+      }
+
+      // 禁用用户控制
+      controls.enabled = !isAutoShowing.value;
     };
 
     // 切换 Wireframe 显示
@@ -1205,6 +1333,13 @@ export default {
           handleClick(event); // 处理右键点击
         }
       });
+      window.addEventListener('resize', () => {
+        // 新增代码 ↓↓↓
+        const box = new THREE.Box3().setFromObject(model);
+        const size = box.getSize(new THREE.Vector3()).length();
+        camera.position.z = size * 2;  // 动态调整相机距离
+        controls.update();
+      });
     });
 
     // 组件卸载时移除事件监听
@@ -1420,6 +1555,7 @@ export default {
       showGrid,
       showWireframe,
       clipPosition,
+      toggleAutoShow,
       toggleExplodedView,
       toggleClipping,
       toggleGrid,
@@ -1437,6 +1573,10 @@ export default {
       currentDirection,
       axisRanges,
       goToHome,
+      isAutoShowing,
+      scalePercentage,
+      scaleHover,
+      resetView
     };
   },
 };
