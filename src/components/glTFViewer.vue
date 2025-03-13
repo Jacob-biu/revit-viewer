@@ -47,7 +47,7 @@
       <input type="range" v-if="currentDirection !== 'Free'" v-model="clipPosition"
         :min="axisRanges[currentDirection].min" :max="axisRanges[currentDirection].max" step="0.1"
         style="width: 100%; margin-bottom:20px;" />
-      <div style="color: white; font-size: 12px; margin-bottom:10px;">
+      <div v-if="currentDirection !== 'Free'" style="color: white; font-size: 12px; margin-bottom:10px;">
         当前位置: {{ clipPosition }}
         (范围: {{ axisRanges[currentDirection].min.toFixed(1) }} -
         {{ axisRanges[currentDirection].max.toFixed(1) }})
