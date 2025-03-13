@@ -438,12 +438,14 @@ export default {
       camera = new THREE.PerspectiveCamera(
         75,
         window.innerWidth / window.innerHeight,
-        0.01,   // 将 near 值从 0.1 改为 0.01
-        10000    // 将 far 值从 1000 改为 10000
+        0.1,   // 将 near 值从 0.1 改为 0.01
+        5000    // 将 far 值从 1000 改为 10000
       );
       renderer = new THREE.WebGLRenderer({
-        antialias: true, // 开启硬件抗锯齿
-        powerPreference: "high-performance" // 启用高性能模式
+        antialias: true,
+        powerPreference: "high-performance",
+        preserveDrawingBuffer: true, // 强制保留绘图缓存
+        alpha: true // 启用透明通道
       });
       // 设置像素比（重要！解决移动端和高分屏锯齿问题）
       renderer.setPixelRatio(window.devicePixelRatio);
