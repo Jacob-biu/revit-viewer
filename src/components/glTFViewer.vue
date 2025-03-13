@@ -52,6 +52,9 @@
         (范围: {{ axisRanges[currentDirection].min.toFixed(1) }} -
         {{ axisRanges[currentDirection].max.toFixed(1) }})
       </div>
+      <div v-if="currentDirection === 'Free'" style="color: white; font-size: 12px; margin-bottom:10px;">
+        拖动模型任意位置调整剖切面
+      </div>
       <!-- 切换剖切方向按钮 -->
       <button @click="switchClippingDirection" :style="buttonStyle">
         切换剖切方向 ({{ currentDirection }})
