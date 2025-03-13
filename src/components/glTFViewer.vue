@@ -202,6 +202,14 @@ export default {
 
     const ambientLight = ref(null); // 用于存储环境光
     const directionalLight = ref(null); // 用于存储平行光
+    const directionalLights = ref({
+      top: null,
+      bottom: null,
+      front: null,
+      back: null,
+      left: null,
+      right: null
+    });
     const brightness = ref(1); // 亮度值，范围 0 到 2
 
     const showWireframe = ref(false); // 是否显示线框
@@ -227,10 +235,6 @@ export default {
       // 在跳转前执行必要的清理
       router.push('/')
     }
-
-
-
-
 
     // 加载 GLTF/GLB 文件
     const loadModel = async (files) => {
@@ -377,13 +381,34 @@ export default {
       });
 
       // 初始化环境光
-      ambientLight.value = new THREE.AmbientLight(0x404040, brightness.value * 20);
+      ambientLight.value = new THREE.AmbientLight(0x404040, brightness.value * 10);
       scene.add(ambientLight.value);
 
       // 初始化平行光
       directionalLight.value = new THREE.DirectionalLight(0xffffff, brightness.value * 9);
       directionalLight.value.position.set(50, 50, 50);
       scene.add(directionalLight.value);
+
+      // 六个方向光源
+      const createDirectionalLight = (color, position, intensityMultiplier = 1.5) => {
+        const light = new THREE.DirectionalLight(color, brightness.value * intensityMultiplier);
+        light.position.copy(position);
+        return light;
+      };
+
+      // 初始化六个方向光
+      directionalLights.value = {
+        top: createDirectionalLight(0xffffff, new THREE.Vector3(0, 100, 0), 1.5),      // 上方3倍
+        bottom: createDirectionalLight(0xffffff, new THREE.Vector3(0, -50, 0), 3),  // 下方8倍，位置更近，添加暖黄色
+        front: createDirectionalLight(0xffffff, new THREE.Vector3(0, 0, 100), 1.5),  // 前方3倍
+        back: createDirectionalLight(0xffffff, new THREE.Vector3(0, 0, -100), 1.5),  // 后方3倍
+        left: createDirectionalLight(0xffffff, new THREE.Vector3(-100, 0, 0), 1.5),  // 左侧3倍
+        right: createDirectionalLight(0xffffff, new THREE.Vector3(100, 0, 0), 1.5)  // 右侧3倍
+      };
+
+
+      // 将六个光源加入场景
+      Object.values(directionalLights.value).forEach(light => scene.add(light));
 
       // 设置相机位置，使其居中
       camera.position.set(0, 0, 200); // 将相机放在 Z 轴正方向，距离模型 200 单位
@@ -1123,12 +1148,25 @@ export default {
 
     // 监听亮度变化
     watch(brightness, (newValue) => {
+      // 更新原有光源
       if (ambientLight.value) {
-        ambientLight.value.intensity = newValue * 20; // 调整环境光强度
+        ambientLight.value.intensity = newValue * 10;
       }
       if (directionalLight.value) {
-        directionalLight.value.intensity = newValue * 9; // 调整平行光强度
+        directionalLight.value.intensity = newValue * 9;
       }
+
+      // 更新六个方向光源（单独处理下方光源）
+      Object.entries(directionalLights.value).forEach(([key, light]) => {
+        if (light) {
+          let intensity = newValue * 1.5;
+          if (key === 'bottom') {
+            intensity = newValue * 3; // 下方单独使用8倍系数
+            light.color.setHex(0xffffff); // 设置暖黄色
+          }
+          light.intensity = intensity;
+        }
+      });
     });
 
     // 键盘控制模型的翻转
