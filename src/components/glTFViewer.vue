@@ -423,10 +423,11 @@ export default {
       controls.maxDistance = 1000;
       controls.enableRotate = true;
       controls.rotateSpeed = 1.0;
-      controls.minPolarAngle = 0;
-      controls.maxPolarAngle = Math.PI;
+      controls.minPolarAngle = -Infinity;
+      controls.maxPolarAngle = Infinity;
       controls.minAzimuthAngle = -Infinity;
       controls.maxAzimuthAngle = Infinity;
+
 
       // 设置 OrbitControls 的目标点为场景中心
       controls.target.set(0, 0, 0);
@@ -469,7 +470,6 @@ export default {
         }
       });
 
-      // 在 initScene() 函数中添加
       const createGradientBackground = () => {
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
@@ -990,14 +990,15 @@ export default {
             originalPositions.set(object, object.position.clone());
           }
 
-          // 计算方向向量（仅在未缓存时）
+          // 修改点：反转Y轴方向计算
           if (!directionCache.has(object)) {
             const bbox = new THREE.Box3().setFromObject(object);
             const center = new THREE.Vector3();
             bbox.getCenter(center);
             const direction = new THREE.Vector3()
               .subVectors(center, model.position)
-              .normalize();
+              .normalize()
+              .multiply(new THREE.Vector3(1, 1, 1)); // 新增Y轴反向
             directionCache.set(object, direction);
           }
         }
@@ -1024,7 +1025,7 @@ export default {
           // 根据状态切换位置
           if (isExploded.value) {
             object.position.copy(origin)
-              .add(direction.clone().multiplyScalar(50));
+              .add(direction.clone().multiplyScalar(60));
           } else {
             object.position.copy(origin);
           }
